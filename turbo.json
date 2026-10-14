@@ -1,0 +1,31 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["^typecheck"]
+    },
+    "test": {
+      "dependsOn": ["^build"],
+      "outputs": []
+    },
+    "test:e2e": {
+      "dependsOn": ["build"],
+      "cache": false,
+      "env": ["WEB_DIR", "WEB_PORT", "CROSS_BROWSER", "CI"],
+      "passThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH"]
+    },
+    "//#nginx:test": {
+      "cache": false,
+      "env": ["NGINX_TEST_PORT", "NGINX_SITE_DIR", "NGINX_COMPOSE_FILES", "NGINX_KEEP", "NGINX_BASE_URL", "CI"],
+      "passThroughEnv": ["PLAYWRIGHT_BROWSERS_PATH", "DOCKER_*", "COMPOSE_*", "BUILDKIT_*"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}

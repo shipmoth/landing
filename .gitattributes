@@ -1,0 +1,8 @@
+# Auto detect text files and store them with LF; check them out with LF on every OS too
+# (tests compare exact bytes, e.g. the canonical art JSON).
+* text=auto eol=lf
+
+# Fixtures whose exact bytes are the point (.ans art uses CRLF line ends).
+packages/ascii-art/test/fixtures/** -text
+
+*.png binary
