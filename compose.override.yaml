@@ -1,0 +1,10 @@
+# Local use only: publishes the site on the host. `docker compose up` (no -f) loads this file on
+# top of compose.yaml automatically; deployments that run `docker compose -f compose.yaml` (e.g.
+# Coolify) do not, so they never bind a host port and their own proxy routes to the container.
+#
+#   docker compose up -d --build --wait                      # http://localhost:8080
+#   NGINX_PORT=127.0.0.1:9000 docker compose up -d --build   # another port / only on localhost
+services:
+  nginx:
+    ports:
+      - "${NGINX_PORT:-8080}:8080"

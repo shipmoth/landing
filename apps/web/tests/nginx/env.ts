@@ -27,6 +27,8 @@ export const COMPOSE_ARGS: string[] = [
   'compose',
   '-p', PROJECT,
   '-f', resolve(REPO_ROOT, 'compose.yaml'),
+  // the host port (an explicit -f stops compose loading the override by itself)
+  '-f', resolve(REPO_ROOT, 'compose.override.yaml'),
   ...(SITE_DIR ? ['-f', resolve(REPO_ROOT, 'docker', 'compose.site.yaml')] : []),
   '-f', resolve(dirname(fileURLToPath(import.meta.url)), 'compose.test.yaml'),
   ...extraFiles.flatMap((file) => ['-f', resolve(file)]),

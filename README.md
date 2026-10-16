@@ -208,6 +208,10 @@ One URL per page; nginx picks `index.html`, `index.md` or `index.txt` (`docker/n
 - Image (`docker/web.Dockerfile`): built in `node:22-alpine`, served by `nginx-unprivileged`
   alpine-slim, about 19 MB, running as uid 101 on port 8080 with a read-only filesystem. Text files
   are precompressed (`gzip_static`). `/healthz` backs the healthcheck.
+- Deploying (e.g. Coolify): `compose.yaml` publishes no host port, only `expose: 8080`; point the
+  platform's domain/proxy at container port 8080. The host port for local use lives in
+  `compose.override.yaml`, which a plain `docker compose up` loads automatically and
+  `docker compose -f compose.yaml` (what platforms run) does not.
 - Test env: `NGINX_TEST_PORT`, `NGINX_SITE_DIR` (serve a host folder, see `docker/compose.site.yaml`),
   `NGINX_COMPOSE_FILES`, `NGINX_KEEP=1` (leave the stack running).
 

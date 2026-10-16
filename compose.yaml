@@ -4,6 +4,11 @@
 #   NGINX_PORT=127.0.0.1:9000 docker compose up -d --build   # another port / only on localhost
 #   docker compose down
 #
+# This file publishes no host port, so a platform with its own reverse proxy (e.g. Coolify, whose
+# proxy already holds :8080) can deploy it as is and route a domain to the container's port 8080.
+# The host port for local use is in compose.override.yaml, which `docker compose` loads
+# automatically when no -f is given (platforms that pass `-f compose.yaml` skip it).
+#
 # Image: docker/web.Dockerfile. nginx config: docker/nginx/default.conf.
 # To serve a folder from the host instead of the site built into the image (no rebuild), add
 # docker/compose.site.yaml (see there).
@@ -15,9 +20,9 @@ services:
       context: .
       dockerfile: docker/web.Dockerfile
     image: shipmoth/web:local
-    ports:
-      # nginx listens on 8080 inside the container (it runs as an unprivileged user)
-      - "${NGINX_PORT:-8080}:8080"
+    # nginx listens on 8080 inside the container (it runs as an unprivileged user)
+    expose:
+      - "8080"
     restart: unless-stopped
     # nothing in the image needs to be written: pid and temp files go to /tmp, logs to stdout/stderr
     read_only: true

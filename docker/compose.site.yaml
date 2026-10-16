@@ -1,7 +1,7 @@
 # Override: serve a folder from the host instead of the site built into the image, e.g. to try
 # the nginx config against a fresh `pnpm build` without rebuilding the image:
 #
-#   NGINX_SITE_DIR=./apps/web/dist docker compose -f compose.yaml -f docker/compose.site.yaml up -d --build --wait
+#   NGINX_SITE_DIR=./apps/web/dist docker compose -f compose.yaml -f compose.override.yaml \n#     -f docker/compose.site.yaml up -d --build --wait
 #
 # (relative paths are resolved from the repository root, the folder of the first -f file).
 # The folder should look like the build output: index.html, index.md, index.txt, about/index.*,
