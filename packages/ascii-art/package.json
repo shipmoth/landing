@@ -1,0 +1,19 @@
+{
+  "name": "@shipmoth/ascii-art",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./hero": "./src/data/hero.json",
+    "./wordmark": "./src/data/wordmark.json"
+  },
+  "scripts": {
+    "typecheck": "tsc -p .",
+    "test": "node --test --experimental-strip-types \"test/**/*.test.ts\""
+  },
+  "devDependencies": {
+    "typescript": "7.0.2",
+    "@types/node": "22.20.5"
+  }
+}

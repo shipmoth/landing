@@ -1,0 +1,11 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["es2023"],
+    "types": ["node"],
+    // tools/ and test/ run directly under `node --experimental-strip-types`, which needs real file
+    // extensions. src/ stays a single file without relative imports, so consumers need no such flag.
+    "allowImportingTsExtensions": true
+  },
+  "include": ["src", "test", "tools"]
+}
