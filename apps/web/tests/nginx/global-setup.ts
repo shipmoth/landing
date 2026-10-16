@@ -6,7 +6,7 @@
 import { spawnSync, type SpawnSyncOptionsWithStringEncoding } from 'node:child_process';
 import { existsSync, mkdirSync, rmdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { REPO_ROOT, COMPOSE_ARGS, COMPOSE_ENV, EXTERNAL_BASE_URL, HTML_ONLY_PATH, SITE_DIR, SKIP_ENV } from './env';
+import { REPO_ROOT, COMPOSE_ARGS, COMPOSE_ENV, EXTERNAL_BASE_URL, HTML_ONLY_PATH, SITE_DIR, SKIP_ENV, TXT_ONLY_PATH } from './env';
 
 function docker(args: string[], options: Omit<SpawnSyncOptionsWithStringEncoding, 'encoding'> = {}) {
   return spawnSync('docker', args, { cwd: REPO_ROOT, env: COMPOSE_ENV, ...options, encoding: 'utf8' });
@@ -35,11 +35,13 @@ export default async function globalSetup(): Promise<(() => Promise<void>) | voi
     return;
   }
 
-  // A read-only bind mount (NGINX_SITE_DIR) cannot get the fallback page mounted into it unless the
-  // mountpoint already exists. Create it for the run (empty), remove it afterwards.
-  const mountpoint = SITE_DIR && resolve(SITE_DIR, `.${HTML_ONLY_PATH}`);
-  const madeMountpoint = !!mountpoint && !existsSync(mountpoint);
-  if (madeMountpoint) mkdirSync(mountpoint, { recursive: true });
+  // A read-only bind mount (NGINX_SITE_DIR) cannot get the fallback pages mounted into it unless the
+  // mountpoints already exist. Create them for the run (empty), remove them afterwards.
+  const siteDir = SITE_DIR;
+  const madeMountpoints = siteDir
+    ? [HTML_ONLY_PATH, TXT_ONLY_PATH].map((path) => resolve(siteDir, `.${path}`)).filter((dir) => !existsSync(dir))
+    : [];
+  for (const dir of madeMountpoints) mkdirSync(dir, { recursive: true });
 
   const down = async () => {
     if (process.env['NGINX_KEEP'] === '1') {
@@ -47,7 +49,7 @@ export default async function globalSetup(): Promise<(() => Promise<void>) | voi
       return;
     }
     docker([...COMPOSE_ARGS, 'down', '--remove-orphans', '--timeout', '5'], { stdio: 'ignore' });
-    if (madeMountpoint) rmdirSync(mountpoint);
+    for (const dir of madeMountpoints) rmdirSync(dir);
   };
 
   // (output kept for the error below; a fresh image build takes about a minute)

@@ -40,16 +40,20 @@ test('the image holds nginx and the built site only', async () => {
   expect(exec('sh', '-c', 'command -v node || command -v npm || command -v pnpm').stdout.trim()).toBe('');
   const files = exec('find', '/usr/share/nginx/html', '-type', 'f').stdout.trim().split('\n');
   expect(files.length).toBeGreaterThan(0);
-  // built output (pages and their md / txt, images, the gz copies): no sources, maps or manifests
-  for (const file of files) expect(file).toMatch(/\.(html|md|txt|svg|png|jpe?g|webp|avif|ico|gz)$/);
+  // built output (pages and their md / txt / ansi, images, the gz copies): no sources, maps or manifests
+  for (const file of files) expect(file).toMatch(/\.(html|md|txt|ansi|svg|png|jpe?g|webp|avif|ico|gz)$/);
+  // and every page has all four versions
+  for (const page of ['/usr/share/nginx/html/index', '/usr/share/nginx/html/about/index']) {
+    for (const ext of ['html', 'md', 'txt', 'ansi']) expect(files, `${page}.${ext}`).toContain(`${page}.${ext}`);
+  }
 });
 
 test('every text file has a precompressed copy for gzip_static', async () => {
   test.skip(!!SITE_DIR, "NGINX_SITE_DIR replaces the image's files");
   const missing = exec(
     'sh', '-c',
-    'find /usr/share/nginx/html -type f "(" -name "*.html" -o -name "*.md" -o -name "*.txt" -o -name "*.svg" ")" ' +
-      '-not -path "*/__html-only/*" | while read -r f; do [ -f "$f.gz" ] || echo "$f"; done',
+    'find /usr/share/nginx/html -type f "(" -name "*.html" -o -name "*.md" -o -name "*.txt" -o -name "*.ansi" -o -name "*.svg" ")" ' +
+      '-not -path "*/__html-only/*" -not -path "*/__txt-only/*" | while read -r f; do [ -f "$f.gz" ] || echo "$f"; done',
   );
   expect(missing.status, missing.stderr).toBe(0);
   expect(missing.stdout.trim()).toBe('');

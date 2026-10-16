@@ -33,6 +33,7 @@ const CONTENT_TYPES: Record<string, string> = {
   '.ico': 'image/x-icon',
   '.txt': 'text/plain; charset=utf-8',
   '.md': 'text/markdown; charset=utf-8',
+  '.ansi': 'text/plain; charset=utf-8',
   '.map': 'application/json; charset=utf-8',
 };
 

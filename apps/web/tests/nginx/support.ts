@@ -22,12 +22,14 @@ export function requireCompose(): void {
   test.skip(!!EXTERNAL_BASE_URL, 'NGINX_BASE_URL is set: there is no compose stack to inspect');
 }
 
-export type Format = 'html' | 'md' | 'txt';
+export type Format = 'html' | 'md' | 'txt' | 'ansi';
 
 export const CONTENT_TYPES: Record<Format, string> = {
   html: 'text/html; charset=utf-8',
   md: 'text/markdown; charset=utf-8',
   txt: 'text/plain; charset=utf-8',
+  // (text/plain, so curl prints it and a browser shows it)
+  ansi: 'text/plain; charset=utf-8',
 };
 
 export interface Page {
@@ -38,16 +40,35 @@ export interface Page {
 }
 
 export const PAGES: Page[] = [
-  { name: 'home', path: '/', files: { md: '/index.md', txt: '/index.txt' } },
-  { name: 'about', path: '/about/', files: { html: '/about/index.html', md: '/about/index.md', txt: '/about/index.txt' } },
+  { name: 'home', path: '/', files: { md: '/index.md', txt: '/index.txt', ansi: '/index.ansi' } },
+  { name: 'about', path: '/about/', files: { html: '/about/index.html', md: '/about/index.md', txt: '/about/index.txt', ansi: '/about/index.ansi' } },
 ];
 
-/** What a body is, by its shape: html has a doctype, markdown starts with a heading, text is neither. */
+export const ESC = '\x1b';
+/** an SGR escape (colours, bold, underline, reset) */
+export const SGR = /\x1b\[[0-9;]*m/g;
+
+/** a line of terminal art once its escapes are gone: half blocks and spaces */
+const ART_LINE = /^ *[▀▄█][ ▀▄█]*$/;
+
+/** the coloured text as plain text: escapes gone, the art lines and the empty line under each block taken out */
+export function withoutColour(ansi: string): string {
+  const lines = ansi.replace(SGR, '').split('\n');
+  const isArt = (line: string | undefined) => line !== undefined && ART_LINE.test(line);
+  return lines.filter((line, i) => !isArt(line) && !(line === '' && isArt(lines[i - 1]))).join('\n');
+}
+
+/**
+ * What a body is, by its shape: html has a doctype, markdown starts with a heading, coloured text
+ * has escapes (SGR only), plain text is none of these.
+ */
 export function formatOf(body: string): Format | 'unknown' {
   if (/^\s*<!doctype html>/i.test(body)) return 'html';
   if (body.startsWith('# ')) return 'md';
-  if (!/<[a-z!/]/i.test(body)) return 'txt';
-  return 'unknown';
+  // (before the markup check: the ascii art on top of the coloured text may well contain "<a")
+  if (body.includes(ESC)) return body.replace(SGR, '').includes(ESC) ? 'unknown' : 'ansi';
+  if (/<[a-z!/]/i.test(body)) return 'unknown';
+  return 'txt';
 }
 
 export const BROWSER_UA =

@@ -38,11 +38,11 @@ which does not support TypeScript 7 yet (0.9.10 has a peer dependency on `typesc
 Keep logic in `.ts` modules and the frontmatter down to imports and props.
 
 `dist/` is self-contained, with clean URLs: each page is a folder with one `index.html` (its CSS
-and its script inlined) and the same page as `index.md` and `index.txt` (see *Markdown and plain
-text* below), plus `favicon.svg` at the root:
+and its script inlined) and the same page as `index.md`, `index.txt` and `index.ansi` (see
+*Markdown and plain text* below), plus `favicon.svg` at the root:
 
-    dist/index.html  index.md  index.txt          /
-    dist/about/index.html  index.md  index.txt    /about/
+    dist/index.html  index.md  index.txt  index.ansi          /
+    dist/about/index.html  index.md  index.txt  index.ansi    /about/
     dist/favicon.svg
 
 Every URL in it is relative (the nav links `./`, `about/` and `../`, from `src/layouts/links.ts`), so
@@ -74,8 +74,9 @@ the `file://` tests open each page by its file.
         scripts/features/       one module per behaviour, each exporting a single init…()
         scripts/lib/            shared helpers (reduced motion, the ascii light, the idea belt,
                                 moth frames, html escaping)
-        build/                  build time only: the markdown and plain-text versions of each
-                                page (plain-pages.ts is the Astro integration; see below)
+        build/                  build time only: the markdown, plain-text and coloured-text
+                                versions of each page (plain-pages.ts is the Astro integration;
+                                see below)
       tests/                    Playwright suites (see Tests)
 
 Both pages share most feature modules, but each page's bundle carries its own copy instead of
@@ -156,10 +157,11 @@ as a fallback.
 
 ## Markdown and plain text
 
-Every page also exists as markdown (`index.md`, for agents and readers that want text/markdown) and
-as plain text (`index.txt`, for `curl` and terminals), next to its `index.html`. A server can pick one
-by the request's `Accept` header (or a curl User-Agent), so `/about/` stays the one URL for all three.
-Each page's `<head>` points at both with `<link rel="alternate">`.
+Every page also exists as markdown (`index.md`, for agents and readers that want text/markdown), as
+plain text (`index.txt`, for terminals and scripts that ask for text/plain) and as coloured text
+(`index.ansi`, what `curl`, wget and HTTPie get by default), next to its `index.html`. A server can
+pick one by the request's `Accept` header and User-Agent, so `/about/` stays the one URL for all four.
+Each page's `<head>` points at the markdown and the plain text with `<link rel="alternate">`.
 
 They are written at the end of the build (`astro:build:done`) by `src/build/plain-pages.ts`, from the
 built html itself, so their copy cannot drift from the page:
@@ -179,31 +181,74 @@ built html itself, so their copy cannot drift from the page:
 - `build/plain-text.ts`: UTF-8, no escape codes, every line at most 80 columns (`WIDTH`), LF
   endings. A banner, `## ` headings like the site, numbered steps, labels in a column (before /
   after), the "what we go after" icons side by side, and links (relative to the page) at the end.
-  A `<pre>` wider than 80 columns fails the build rather than wrapping.
+  A `<pre>` wider than 80 columns fails the build rather than wrapping. It lays the page out as
+  styled lines: each character carries a mark (a heading, an address, dim text, a colour the html
+  gives it). `index.txt` is just the characters.
+- `build/ansi-text.ts`: the same styled lines with the marks as terminal colours, so `index.ansi`
+  can never say or wrap anything differently from `index.txt`. **Invariant:** with its escapes
+  removed, `index.ansi` is `index.txt` byte for byte with at most two blocks of art inserted, each
+  block followed by one empty line: one before the first line, one just before the closing links'
+  rule (the last line of dashes). Every art line is half blocks (`▀ ▄ █`) and spaces, so taking
+  those lines (and the empty line under each block) out gives `index.txt` back (just `index.txt`
+  when the art is off). The colours are the site's tokens from `global.css` as their nearest
+  xterm 256-colour index (`PALETTE`, through `nearestXterm256` from `@shipmoth/ascii-art`, like the
+  art's: amber `--y` 214, violet `--v` 141, pink `--p` 211, teal `--t` 44, `--dim` 243): product
+  names, the product phrases, crew names and tags in their
+  accent; `## ` markers dim and heading words bold; dim paragraphs, rules, the strapline and the
+  before / after labels grey; the "what we go after" icons and names in their colours; amber
+  step numbers and the `}o{` in the banner; the signed message like the site's footer (dim frame,
+  coloured product names); addresses underlined. Escapes are SGR only (the text uses `0`, `1`,
+  `4`, `38;5;n`, no 24-bit colour; the art also sets backgrounds) and every line that sets one ends
+  with a reset, so `| head` or
+  Ctrl-C never leaves the terminal tinted. The colours come from the html: `read-page.ts` notes
+  colour classes (`<i class="y">`, `.dim`) and box accents (`style="--c:var(--y)"`) as a `tone`.
+- `build/terminal-art.ts`: the art in `index.ansi`, drawn by `renderArtForTerminal` from
+  `@shipmoth/ascii-art` in half blocks (`mode: 'blocks'`, 256 colours) and centred in 80 columns
+  (`PAGE_ART`). After `curl` the terminal is left showing the END of a long page, so the home page
+  opens with the wordmark (80 columns wide) and closes with the hero moth (60 wide) just above the
+  links: the last screenful is the moth and where to go next. The about page has the wordmark on
+  top. `TERMINAL_ART = false` turns it all off. Art lines that are too wide, leave a colour on,
+  hold any other escape or are not half blocks fail the build.
 
 The output is a pure function of the html, so it is byte-identical across builds. To look at it,
 `pnpm -C apps/web build`, then open `apps/web/dist/index.md` and `apps/web/dist/about/index.md` in a
-markdown viewer, and `cat apps/web/dist/index.txt` in an 80-column terminal.
+markdown viewer, `cat apps/web/dist/index.txt` and `cat apps/web/dist/index.ansi` in an 80-column
+terminal (or `less -R apps/web/dist/index.ansi`).
 
 ## Docker / nginx
 
     docker compose up -d --build --wait    # http://localhost:8080 (NGINX_PORT=127.0.0.1:9000 to change)
     pnpm test:nginx                         # builds + starts the stack, runs Playwright + real curl, stops it
 
-    curl http://localhost:8080/about/                               # curl -> plain text
+    curl http://localhost:8080/about/                               # curl -> coloured text
+    curl http://localhost:8080/about/ | less -R                     # coloured, in a pager
+    curl -H "Accept: text/plain" http://localhost:8080/about/       # plain text, no escape codes
+    curl http://localhost:8080/about/index.txt                      # the same, by name
     curl -H "Accept: text/markdown" http://localhost:8080/about/    # markdown
     curl -H "Accept: text/html" http://localhost:8080/about/        # html
     curl -I -H "Accept: text/markdown" http://localhost:8080/about/ # type + caching headers
 
-One URL per page; nginx picks `index.html`, `index.md` or `index.txt` (`docker/nginx/default.conf`):
+One URL per page; nginx picks `index.html`, `index.md`, `index.txt` or `index.ansi`
+(`docker/nginx/default.conf`):
 
-- `Accept: text/markdown` -> md, `text/plain` -> txt, `text/html` -> html. If several are listed the
-  order is md, txt, html (q-values are ignored).
-- Otherwise curl, wget and HTTPie get txt, and everything else (browsers, `*/*`, `application/json`)
-  gets html; never a 406. A page without that file falls back to its `index.html`.
-- Documents: `Content-Type` with `charset=utf-8`, `Cache-Control: no-cache` (revalidated with ETag /
-  Last-Modified: one URL has several representations) and `Vary: Accept, User-Agent`. Files asked
-  for by name (`/about/index.md`) are served as-is. The favicon is cached for a day.
+| request | gets |
+| --- | --- |
+| `Accept` naming `text/markdown` | `index.md` |
+| `Accept` naming `text/plain` (any client) | `index.txt`: plain, no escape codes |
+| `Accept` naming `text/html` | `index.html` |
+| curl, wget or HTTPie, `Accept` naming none of these (none, curl's `*/*`, `text/*`, …) | `index.ansi`: coloured, as `text/plain` |
+| anyone else (browsers, crawlers, `*/*`, `application/json`) | `index.html` |
+| `/about/index.txt`, `/about/index.ansi`, … by name | that file |
+
+- If `Accept` lists several of ours the order is md, txt, html (q-values are ignored). Never a 406.
+- A page without the chosen file falls back to its `index.html`; a terminal that would get
+  `index.ansi` first falls back to `index.txt` (`index $index_file $index_second index.html`).
+- To get plain text from a terminal: `-H "Accept: text/plain"`, or ask for `index.txt` by name.
+  To page through the colours: `curl … | less -R`.
+- Documents: `Content-Type` with `charset=utf-8` (`index.ansi` is `text/plain`, so curl prints it
+  and a browser shows it), `Cache-Control: no-cache` (revalidated with ETag / Last-Modified: one
+  URL has several representations) and `Vary: Accept, User-Agent`. Files asked for by name
+  (`/about/index.md`) are served as-is. The favicon is cached for a day.
 - `/about` -> 301 `/about/`; the old site's `/about.html` and `/index.html` -> 301 to `/about/` and `/`.
 - Image (`docker/web.Dockerfile`): built in `node:22-alpine`, served by `nginx-unprivileged`
   alpine-slim, about 19 MB, running as uid 101 on port 8080 with a read-only filesystem. Text files
@@ -267,7 +312,8 @@ Chromium; `pnpm test:nginx` tests the Docker image. Install the browser once wit
   `tools/ans2json.ts` turns `test/fixtures/sample.ans` into exactly what the original Python
   converter (`ans2js.py`) made of it (`sample.ans2js.js`, a fixed golden file).
 - `apps/web/tests/unit` (`pnpm test`, Playwright runner, no browser): the DOM-free modules (ascii
-  light, idea belt), the markdown / plain-text generator on small html fixtures, and
+  light, idea belt), the markdown / plain-text / coloured-text generator on small html fixtures
+  (`ansi-text.spec.ts` reads the escapes back with its own small terminal model), and
   `art-room.spec.ts`: the space `global.css` reserves for the hero moth and wordmark matches the
   art's size, so new art fails `pnpm test` until `global.css` is updated.
 - `apps/web/tests/e2e` (project `chromium`, 1280x800 unless a spec says otherwise): behaviour of
@@ -276,7 +322,7 @@ Chromium; `pnpm test:nginx` tests the Docker image. Install the browser once wit
   at every width from 300 to 1920px (nothing cut off, the home hero centred on the column) and at
   each breakpoint, a resized window matching a fresh load,
   the pages over `file://`, with JavaScript off and over a throttled connection, and the built
-  `index.md` / `index.txt` against their page.
+  `index.md` / `index.txt` against their page and `index.ansi` against `index.txt` (the invariant).
 - `apps/web/tests/a11y` (project `chromium`): axe (zero violations; the one accepted rule is
   listed with its nodes and reason in `axe.spec.ts`), keyboard order and focus indicators, and
   what Chromium's accessibility tree exposes.

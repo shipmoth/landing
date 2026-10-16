@@ -33,7 +33,7 @@ COPY packages/ascii-art packages/ascii-art
 COPY apps/web apps/web
 # `pnpm build` minus turbo: the build script of the site and of what it depends on, in order
 RUN pnpm --filter "@shipmoth/web..." run build \
- && find apps/web/dist -type f \( -name '*.html' -o -name '*.md' -o -name '*.txt' -o -name '*.svg' \) \
+ && find apps/web/dist -type f \( -name '*.html' -o -name '*.md' -o -name '*.txt' -o -name '*.ansi' -o -name '*.svg' \) \
       -exec gzip -9 -k {} +
 
 FROM ${NGINX_IMAGE}

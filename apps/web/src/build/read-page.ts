@@ -1,11 +1,13 @@
 // Reads a built page (dist/**/index.html) into a PageModel: what a visitor without JavaScript
 // reads in <main>, plus the title, the description and the header. The markdown and plain-text
-// versions are rendered from that, so their copy can never drift from the html.
+// versions are rendered from that, so their copy can never drift from the html. It also notes the
+// colours the html gives (tone, from styles/global.css's classes and accents) for the coloured
+// text version; the copy does not depend on them.
 //
 // Every element kind in <main> has a rule here. One without a rule fails the build (with its name),
 // so new markup is either given a rule or listed as skipped, never silently dropped.
 import { DomUtils, parseDocument } from 'htmlparser2';
-import { plainText, type Block, type HeadingLevel, type Inline, type ListItem, type NavLink, type PageModel } from './page-model';
+import { plainText, type Block, type HeadingLevel, type Inline, type ListItem, type NavLink, type PageModel, type Tone, type ToneRun } from './page-model';
 
 type Document = ReturnType<typeof parseDocument>;
 type Node = Document['children'][number];
@@ -44,6 +46,36 @@ const WHITE_SPACE = /[ \t\n\r\f]+/g;
 
 function hasClass(el: Element, name: string): boolean {
   return (el.attribs['class'] ?? '').split(WHITE_SPACE).includes(name);
+}
+
+// ---- colours ---------------------------------------------------------------------------------
+// The rules of styles/global.css that colour text, as tones: `.dim` and `i.d` (--dim), the colour
+// classes (`i.y`, `b.r`, ...), `.loop` (dim), and `.lede` and `.tag`, which take their box's accent (`--c`).
+
+const TONE_CLASSES = new Map<string, Tone>([['y', 'y'], ['v', 'v'], ['p', 'p'], ['t', 't'], ['r', 'r'], ['g', 'g'], ['w', 'w'], ['d', 'dim'], ['dim', 'dim'], ['loop', 'dim']]);
+const ACCENT_CLASSES = new Set(['lede', 'tag']);
+/** `style="--c:var(--y)"` (content/colours.ts, accent()) */
+const ACCENT_STYLE = /(?:^|;)\s*--c\s*:\s*var\(--([a-z]+)\)/;
+
+/** the accent a box hands its contents, if it sets one */
+function accentOf(el: Element): Tone | undefined {
+  const name = ACCENT_STYLE.exec(el.attribs['style'] ?? '')?.[1];
+  return name ? TONE_CLASSES.get(name) : undefined;
+}
+
+/** the colour an element's own class gives its text (`accent`: the colour of the box it is in) */
+function toneOf(el: Element, accent: Tone | undefined): Tone | undefined {
+  const classes = (el.attribs['class'] ?? '').split(WHITE_SPACE);
+  if (accent && classes.some((name) => ACCENT_CLASSES.has(name))) return accent;
+  for (const name of classes) {
+    const tone = TONE_CLASSES.get(name);
+    if (tone) return tone;
+  }
+  return undefined;
+}
+
+function withTone<T extends object>(value: T, tone: Tone | undefined): T & { tone?: Tone } {
+  return tone ? { ...value, tone } : value;
 }
 
 function drawnByScript(el: Element): boolean {
@@ -87,9 +119,9 @@ function inlines(nodes: Node[]): Inline[] {
 function inline(node: Node): Inline[] {
   if (DomUtils.isText(node)) return [{ kind: 'text', text: node.data.replace(WHITE_SPACE, ' ') }];
   if (!DomUtils.isTag(node) || skipped(node)) return [];
-  if (node.name === 'i' || node.name === 'em') return [{ kind: 'emphasis', children: inlines(node.children) }];
+  if (node.name === 'i' || node.name === 'em') return [withTone({ kind: 'emphasis', children: inlines(node.children) }, toneOf(node, undefined))];
   if (node.name === 'b' || node.name === 'strong') return strong(node);
-  if (node.name === 's' || node.name === 'del') return [{ kind: 'deleted', children: inlines(node.children) }];
+  if (node.name === 's' || node.name === 'del') return [withTone({ kind: 'deleted', children: inlines(node.children) }, toneOf(node, undefined))];
   if (node.name === 'a') return link(node);
   if (node.name === 'br') return [{ kind: 'break' }];
   if (PLAIN_INLINE.has(node.name)) return inlines(node.children);
@@ -98,7 +130,7 @@ function inline(node: Node): Inline[] {
 
 function strong(el: Element): Inline[] {
   const children = inlines(el.children);
-  if (el.attribs['id'] !== MAIL_ID) return [{ kind: 'strong', children }];
+  if (el.attribs['id'] !== MAIL_ID) return [withTone({ kind: 'strong', children }, toneOf(el, undefined))];
   return [{ kind: 'link', href: `mailto:${DomUtils.textContent(el).trim()}`, children }];
 }
 
@@ -114,46 +146,75 @@ function hasText(content: Inline[]): boolean {
 
 // ---- blocks ------------------------------------------------------------------------------------
 
-function blocks(nodes: Node[], shift: number): Block[] {
-  return nodes.flatMap((node) => block(node, shift));
+/** `accent`: the colour of the box these blocks are in (a product card's, a crew card's) */
+function blocks(nodes: Node[], shift: number, accent: Tone | undefined): Block[] {
+  return nodes.flatMap((node) => block(node, shift, accent));
 }
 
-function block(node: Node, shift: number): Block[] {
+function block(node: Node, shift: number, accent: Tone | undefined): Block[] {
   if (isBlank(node)) return [];
   if (!DomUtils.isTag(node)) throw new Error(`plain pages: loose text between blocks: ${JSON.stringify(DomUtils.textContent(node))}`);
   if (skipped(node)) return [];
   const level = HEADINGS[node.name];
-  if (level) return heading(node, level, shift);
-  if (node.name === 'p') return paragraph(node);
-  if (node.name === 'ul' || node.name === 'ol') return list(node, shift);
-  if (node.name === 'pre') return preformatted(node);
+  if (level) return heading(node, level, shift, accent);
+  if (node.name === 'p') return paragraph(node, accent);
+  if (node.name === 'ul' || node.name === 'ol') return list(node, shift, accent);
+  if (node.name === 'pre') return preformatted(node, accent);
   if (node.name === 'hr') return [{ kind: 'rule' }];
-  if (CONTAINERS.has(node.name)) return blocks(node.children, shift + (hasClass(node, SUBSECTION_CLASS) ? 1 : 0));
+  if (CONTAINERS.has(node.name)) return blocks(node.children, shift + (hasClass(node, SUBSECTION_CLASS) ? 1 : 0), accentOf(node) ?? accent);
   return unknown(node, 'between blocks');
 }
 
-function heading(el: Element, level: HeadingLevel, shift: number): Block[] {
+/** a heading in a coloured box (a product's name, a crew member's) takes the box's colour */
+function heading(el: Element, level: HeadingLevel, shift: number, accent: Tone | undefined): Block[] {
   const content = inlines(el.children);
   if (!hasText(content)) return [];
-  return [{ kind: 'heading', level: Math.min(6, level + shift) as HeadingLevel, content }];
+  return [withTone({ kind: 'heading', level: Math.min(6, level + shift) as HeadingLevel, content }, toneOf(el, accent) ?? accent)];
 }
 
-function paragraph(el: Element): Block[] {
+function paragraph(el: Element, accent: Tone | undefined): Block[] {
   const content = inlines(el.children);
-  return hasText(content) ? [{ kind: 'paragraph', content }] : [];
+  return hasText(content) ? [withTone({ kind: 'paragraph', content }, toneOf(el, accent))] : [];
 }
 
-function preformatted(el: Element): Block[] {
-  const text = DomUtils.textContent(el).replace(/^\n/, '').trimEnd();
-  return text.trim() ? [{ kind: 'preformatted', text }] : [];
+/** the text of an element as shown in a <pre>, cut where its colour changes */
+function toneRuns(el: Element, tone: Tone | undefined): ToneRun[] {
+  return el.children.flatMap((child): ToneRun[] => {
+    if (DomUtils.isText(child)) return [withTone({ text: child.data }, tone)];
+    if (!DomUtils.isTag(child)) return [];
+    return toneRuns(child, toneOf(child, undefined) ?? tone);
+  });
+}
+
+/** the runs from character `start` (inclusive) to `end` (exclusive) of their joined text */
+function sliceRuns(runs: ToneRun[], start: number, end: number): ToneRun[] {
+  const out: ToneRun[] = [];
+  let at = 0;
+  for (const run of runs) {
+    const text = run.text.slice(Math.max(0, start - at), Math.max(0, end - at));
+    at += run.text.length;
+    if (text) out.push({ ...run, text });
+  }
+  return out;
+}
+
+function preformatted(el: Element, accent: Tone | undefined): Block[] {
+  const shown = DomUtils.textContent(el);
+  const text = shown.replace(/^\n/, '').trimEnd();
+  if (!text.trim()) return [];
+  const start = shown.startsWith('\n') ? 1 : 0;
+  const runs = sliceRuns(toneRuns(el, toneOf(el, accent)), start, start + text.length);
+  // (textContent and the walk above see the same text nodes; this only guards against a change)
+  if (runs.map((r) => r.text).join('') !== text) throw new Error('plain pages: the colours of a <pre> do not line up with its text');
+  return [{ kind: 'preformatted', text, runs }];
 }
 
 /** a list of cards (items with their own heading, like the crew) reads as sections, not as a list */
-function list(el: Element, shift: number): Block[] {
+function list(el: Element, shift: number, accent: Tone | undefined): Block[] {
   const lis = el.children.filter((c): c is Element => DomUtils.isTag(c) && !skipped(c));
   for (const li of lis) if (li.name !== 'li') unknown(li, `inside <${el.name}>`);
   if (lis.some((li) => li.children.some((c) => DomUtils.isTag(c) && c.name in HEADINGS))) {
-    return lis.flatMap((li) => blocks(li.children, shift));
+    return lis.flatMap((li) => blocks(li.children, shift, accentOf(li) ?? accent));
   }
   const items = lis.map(listItem).filter((item) => hasText(item.body) || (item.lead && hasText(item.lead)));
   return items.length ? [{ kind: 'list', ordered: el.name === 'ol', items }] : [];
@@ -172,6 +233,8 @@ function listItem(li: Element): ListItem {
       ? { lead: inline(first), body: inlines(li.children.slice(li.children.indexOf(first) + 1)) }
       : { body: inlines(li.children) };
   if (icon) item.icon = DomUtils.textContent(icon);
+  const tone = accentOf(li);
+  if (tone) item.tone = tone;
   return item;
 }
 
@@ -215,6 +278,6 @@ export function readPage(html: string): PageModel {
     description: meta(doc, 'description'),
     strapline: strapline(header),
     nav: nav(header),
-    blocks: blocks(only(doc, 'main').children, 0),
+    blocks: blocks(only(doc, 'main').children, 0, undefined),
   };
 }

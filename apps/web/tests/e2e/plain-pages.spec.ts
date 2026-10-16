@@ -1,6 +1,7 @@
 /**
- * The built markdown and plain-text versions (dist/**\/index.md, index.txt; src/build) against
- * their html page, as a visitor without JavaScript sees it in a real browser.
+ * The built markdown, plain-text and coloured-text versions (dist/**\/index.md, index.txt,
+ * index.ansi; src/build) against their html page, as a visitor without JavaScript sees it in a
+ * real browser. index.ansi is checked against index.txt: the same text plus colour (and art on top).
  *
  * Everything the html shows in <main> (each heading, paragraph and list item, by its rendered
  * text) must be in both versions. The only text left out on purpose, besides what the browser
@@ -15,12 +16,17 @@ import { dirname, join, resolve } from 'node:path';
 import type { Page } from '@playwright/test';
 import { Lexer, marked } from 'marked';
 import { plainVersions } from '../../src/build/plain-pages';
+import { TERMINAL_ART, artFor } from '../../src/build/terminal-art';
 import { test, expect } from '../support/fixtures';
 import { WEB_DIR } from '../support/env';
 import { PAGES, PAGE_NAMES } from '../support/expected';
 
 /** the plain text is for an 80-column terminal (not imported from src/build: that would test the generator against itself) */
 const WIDTH = 80;
+/** an SGR escape (colour, bold, underline, reset) */
+const SGR = /\x1b\[[0-9;]*m/g;
+/** a line of terminal art once its escapes are gone: half blocks and spaces, at least one block */
+const ART_LINE = /^ *[▀▄█][ ▀▄█]*$/;
 
 test.use({ javaScriptEnabled: false });
 
@@ -156,11 +162,62 @@ for (const name of PAGE_NAMES) {
       expect(headings(text)).toEqual(headings(read('index.md').toString('utf8')));
     });
 
-    test('both are exactly what the generator makes of the built html', () => {
+    test('all three are exactly what the generator makes of the built html', () => {
       // (so they are a pure function of the page: no dates, no randomness, no stale copy)
-      const { md, txt } = plainVersions(read('index.html').toString('utf8'));
+      const { md, txt, ansi } = plainVersions(read('index.html').toString('utf8'), artFor(PAGES[name].file));
       expect(read('index.md').equals(Buffer.from(md, 'utf8'))).toBe(true);
       expect(read('index.txt').equals(Buffer.from(txt, 'utf8'))).toBe(true);
+      expect(read('index.ansi').equals(Buffer.from(ansi, 'utf8'))).toBe(true);
+    });
+
+    test('the coloured text is the plain text plus colour, with art inserted on top and before the links', () => {
+      const ansi = new TextDecoder('utf-8', { fatal: true }).decode(read('index.ansi'));
+      const txt = read('index.txt').toString('utf8');
+      expect(ansi).toContain('\x1b[');
+      expect(ansi.replace(SGR, ''), 'only SGR escapes').not.toContain('\x1b');
+
+      // stripped, every line is either a line of index.txt or art (half blocks and spaces)
+      const lines = ansi.replace(SGR, '').split('\n');
+      const isArt = (line: string | undefined) => line !== undefined && ART_LINE.test(line);
+      /** the art blocks: [first line, rows] */
+      const blocks: [number, number][] = [];
+      for (const [i, line] of lines.entries()) {
+        if (!isArt(line)) continue;
+        const last = blocks.at(-1);
+        if (last && last[0] + last[1] === i) last[1]++;
+        else blocks.push([i, 1]);
+      }
+      // each block is followed by one empty line; take the blocks and those lines out: index.txt
+      for (const [start, rows] of blocks) expect(lines[start + rows], `an empty line under the art at line ${start + 1}`).toBe('');
+      const text = lines.filter((line, i) => !isArt(line) && !(line === '' && isArt(lines[i - 1])));
+      expect(text.join('\n'), 'without the art, exactly index.txt').toBe(txt);
+
+      // where: one block on top; on the home page one more just before the closing links' rule
+      const linksRule = lines.lastIndexOf('-'.repeat(WIDTH));
+      expect(lines[linksRule + 2]).toBe('links, relative to this page:');
+      const expected: [number, number][] = [];
+      if (TERMINAL_ART) {
+        expected.push([0, blocks[0]?.[1] ?? -1]);
+        if (name === 'index') expected.push([linksRule - 1 - (blocks[1]?.[1] ?? -1), blocks[1]?.[1] ?? -1]);
+      }
+      expect(blocks, 'art blocks [first line, rows]').toEqual(expected);
+      if (TERMINAL_ART) {
+        expect(blocks[0]?.[1], 'wordmark rows').toBeGreaterThanOrEqual(5);
+        if (name === 'index') expect(blocks[1]?.[1], 'moth rows').toBeGreaterThanOrEqual(8);
+      }
+
+      const raw = ansi.split('\n');
+      expect(raw.pop()).toBe('');
+      for (const [i, line] of raw.entries()) {
+        const visible = line.replace(SGR, '');
+        expect([...visible].length, `line ${i + 1}`).toBeLessThanOrEqual(WIDTH);
+        if (line.includes('\x1b')) expect(line.endsWith('\x1b[0m'), `line ${i + 1} resets: ${JSON.stringify(line)}`).toBe(true);
+        expect(visible, `line ${i + 1}`).not.toMatch(/[\u0000-\u001f\u007f-\u009f]/);
+        // the text (not the art) in 256 colours only: reset, bold, underline, 38;5;n
+        if (!isArt(visible)) {
+          for (const [, params] of line.matchAll(/\x1b\[([0-9;]*)m/g)) expect(params, `line ${i + 1}`).toMatch(/^(?:(?:0|1|4|38;5;\d{1,3})(?:;|$))+$/);
+        }
+      }
     });
   });
 }

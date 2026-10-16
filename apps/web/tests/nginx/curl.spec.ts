@@ -2,13 +2,14 @@
  * The acceptance checks, run with the real curl binary (its own User-Agent, and Accept: any type),
  * exactly as written but against the stack under test instead of https://example.com:
  *
- *   curl https://example.com/about/                                  # default curl -> text
+ *   curl https://example.com/about/                                  # default curl -> coloured text
+ *   curl -H "Accept: text/plain" https://example.com/about/         # plain text, no escape codes
  *   curl -H "Accept: text/markdown" https://example.com/about/       # markdown
  *   curl -H "Accept: text/html" https://example.com/about/           # html
  *   curl -I -H "Accept: text/markdown" https://example.com/about/    # MIME + caching headers
  */
 import { test, expect } from '@playwright/test';
-import { BASE_URL, CURL_AVAILABLE, PAGES, curl, fileBody, formatOf, requireStack } from './support';
+import { BASE_URL, CURL_AVAILABLE, ESC, PAGES, curl, fileBody, formatOf, requireStack, withoutColour } from './support';
 
 requireStack();
 test.skip(!CURL_AVAILABLE, 'curl is not on PATH');
@@ -31,11 +32,42 @@ for (const page of PAGES) {
   const url = `${BASE_URL}${page.path}`;
 
   test.describe(`curl ${page.path}`, () => {
-    test(`curl ${url}  -> plain text`, async () => {
+    test(`curl ${url}  -> coloured text`, async () => {
       const out = await curl([url]);
+      expect(formatOf(out), out.slice(0, 200)).toBe('ansi');
+      expect(out).toContain(`${ESC}[`);
+      expect(out).not.toMatch(/<!doctype|<\/html>/i);
+      expect(out).toBe(await fileBody(page.files.ansi!));
+      // the same text as the plain version, once the colours and the art are taken out
+      expect(withoutColour(out)).toBe(await fileBody(page.files.txt!));
+    });
+
+    test(`curl -H "Accept: text/plain" ${url}  -> plain text, no escape codes`, async () => {
+      const out = await curl(['-H', 'Accept: text/plain', url]);
       expect(formatOf(out), out.slice(0, 200)).toBe('txt');
-      expect(out).not.toContain('<');
+      expect(out).not.toContain(ESC);
       expect(out).toBe(await fileBody(page.files.txt!));
+    });
+
+    test(`curl ${url}index.txt and ${url}index.ansi  -> each by name`, async () => {
+      expect(await curl([`${url}index.txt`])).toBe(await fileBody(page.files.txt!));
+      expect(await curl([`${url}index.ansi`])).toBe(await fileBody(page.files.ansi!));
+      expect(await curl([`${url}index.ansi`])).toContain(ESC);
+    });
+
+    test(`curl -I ${url}  -> text/plain with utf-8, negotiated and revalidated`, async () => {
+      const { status, headers } = parseHead(await curl(['-I', url]));
+      expect(status).toBe(200);
+      expect(headers['content-type']).toBe('text/plain; charset=utf-8');
+      expect(headers['cache-control']).toBe('no-cache');
+      expect(headers['vary']?.toLowerCase()).toContain('accept, user-agent');
+      expect(Number(headers['content-length'])).toBe(Buffer.byteLength(await fileBody(page.files.ansi!)));
+    });
+
+    test(`curl --compressed ${url}  -> the same coloured text, gzipped on the wire`, async () => {
+      const { headers } = parseHead(await curl(['-I', '--compressed', url]));
+      expect(headers['content-encoding']).toBe('gzip');
+      expect(await curl(['--compressed', url])).toBe(await fileBody(page.files.ansi!));
     });
 
     test(`curl -H "Accept: text/markdown" ${url}  -> markdown`, async () => {
@@ -69,9 +101,9 @@ test('curl -I http://.../about  -> 301 to /about/ (a path, not a host)', async (
   expect(headers['location']).toBe('/about/');
 });
 
-test('curl -L http://.../about.html  -> follows the old URL to the text page', async () => {
+test('curl -L http://.../about.html  -> follows the old URL to the coloured text page', async () => {
   const out = await curl(['-L', `${BASE_URL}/about.html`]);
-  expect(out).toBe(await fileBody('/about/index.txt'));
+  expect(out).toBe(await fileBody('/about/index.ansi'));
 });
 
 test('curl -sf http://.../nope  -> fails with 404', async () => {

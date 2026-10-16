@@ -1,0 +1,1 @@
+NGINX-TEST-TXT-ONLY: a page with index.txt but no index.ansi, so a terminal falls back to this.

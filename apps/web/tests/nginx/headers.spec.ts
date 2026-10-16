@@ -42,22 +42,31 @@ test.describe('favicon.svg', () => {
 
 test.describe('caching', () => {
   for (const page of PAGES) {
-    for (const accept of ['text/html', 'text/markdown', 'text/plain']) {
-      test(`${page.path} (${accept}) revalidates to a 304 with the same headers`, async () => {
-        const first = await raw(page.path, { Accept: accept });
+    const requests: Record<string, string>[] = [{ Accept: 'text/html' }, { Accept: 'text/markdown' }, { Accept: 'text/plain' }, { 'User-Agent': CURL_UA }];
+    for (const headers of requests) {
+      test(`${page.path} (${JSON.stringify(headers)}) revalidates to a 304 with the same headers`, async () => {
+        const first = await raw(page.path, headers);
         const etag = first.headers['etag'];
         expect(etag).toBeTruthy();
-        const again = await raw(page.path, { Accept: accept, 'If-None-Match': etag! });
+        const again = await raw(page.path, { ...headers, 'If-None-Match': etag! });
         expect(again.status).toBe(304);
         expect(again.body.length).toBe(0);
         expect(again.headers['etag']).toBe(etag);
         expect(again.headers['cache-control']).toBe('no-cache');
         expectNegotiatedVary(again);
 
-        const since = await raw(page.path, { Accept: accept, 'If-Modified-Since': first.headers['last-modified']! });
+        const since = await raw(page.path, { ...headers, 'If-Modified-Since': first.headers['last-modified']! });
         expect(since.status).toBe(304);
       });
     }
+
+    test(`${page.path}: the coloured and the plain text have different ETags`, async () => {
+      const ansi = await raw(page.path, { 'User-Agent': CURL_UA });
+      const txt = await raw(page.path, { 'User-Agent': CURL_UA, Accept: 'text/plain', 'If-None-Match': ansi.headers['etag']! });
+      expect(formatOf(ansi.text)).toBe('ansi');
+      expect(txt.status).toBe(200);
+      expect(formatOf(txt.text)).toBe('txt');
+    });
 
     test(`${page.path}: another representation's ETag does not match`, async () => {
       const html = await raw(page.path, { Accept: 'text/html' });
@@ -72,7 +81,9 @@ test.describe('compression', () => {
   const targets: [string, Record<string, string>, string][] = [
     ['/', { Accept: 'text/html' }, 'text/html'],
     ['/', { Accept: 'text/markdown' }, 'text/markdown'],
-    ['/', { 'User-Agent': CURL_UA }, 'text/plain'],
+    ['/', { 'User-Agent': CURL_UA }, 'text/plain'],          // index.ansi
+    ['/about/', { 'User-Agent': 'Wget' }, 'text/plain'],      // index.ansi
+    ['/about/index.ansi', {}, 'text/plain'],
     ['/about/', { Accept: 'text/html' }, 'text/html'],
     ['/about/', { Accept: 'text/markdown' }, 'text/markdown'],
     ['/about/', { Accept: 'text/plain' }, 'text/plain'],

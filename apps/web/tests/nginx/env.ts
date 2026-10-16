@@ -19,6 +19,8 @@ export const SERVICE = 'nginx';
 
 /** a page with only index.html, mounted into the docroot by compose.test.yaml (the fallback test) */
 export const HTML_ONLY_PATH = '/__html-only/';
+/** a page with index.txt and index.html but no index.ansi (a terminal's fallback to plain text) */
+export const TXT_ONLY_PATH = '/__txt-only/';
 
 const extraFiles = (process.env['NGINX_COMPOSE_FILES'] ?? '').split(delimiter).filter(Boolean);
 
