@@ -1,0 +1,61 @@
+---
+import Base from '../layouts/Base.astro';
+import CrewCard from '../components/CrewCard.astro';
+import LabTile from '../components/LabTile.astro';
+import MailCopy from '../components/MailCopy.astro';
+import { crew, lab } from '../content/about';
+import { ABOUT_TAGLINE } from '../content/taglines';
+---
+<Base
+  page="about"
+  title="about · shipmoth"
+  description="shipmoth is four people and a moth: arjun, alan, ijas and jose. an indie software factory building small apps that take the friction out of everyday things."
+  moths="0.35"
+>
+
+<section class="hero crew-hero">
+  <canvas id="crew" role="img" aria-label="a swirling ascii light with four moths circling it, one each for arjun, alan, ijas and jose"></canvas>
+  <h1 class="sr">about shipmoth</h1>
+  <p class="type"><span id="typed" data-line={ABOUT_TAGLINE}><noscript>{ABOUT_TAGLINE}</noscript></span><span class="caret" aria-hidden="true">&#9612;</span></p>
+</section>
+
+<hr>
+
+<section>
+  <p>shipmoth is four people in a small software factory. we go after everyday friction the way moths go after porch lights: a little obsessively, and from every direction at once.</p>
+  <p>no org chart. a group chat, a whiteboard with far too many arrows on it, and a habit of shipping things slightly before they feel ready.</p>
+</section>
+
+<hr>
+
+<section>
+  <h2>the crew</h2>
+  {/* portraits hidden for now: drop "hidden" below and "no-pics" on the list to bring them back */}
+  <p class="dim" hidden>real photos soon. until then, self-portraits.</p>
+  <ul class="crew no-pics">
+    {crew.map((mate) => <CrewCard {...mate} />)}
+  </ul>
+</section>
+
+{/* the lab: photos hidden for now. remove this wrapper div to bring them back */}
+<div hidden>
+<hr>
+
+<section>
+  <h2>the lab</h2>
+  <p class="dim">the people, the desks and the general chaos.</p>
+</section>
+<div class="wall" role="group" aria-label="photos from the lab">
+  {lab.map((photo, i) => <LabTile {...photo} n={i + 1} />)}
+</div>
+</div>
+
+<hr>
+
+<section>
+  <h2>say hello</h2>
+  <p>we are not hiring, exactly. but if you build odd, useful things, write to <MailCopy /></p>
+</section>
+
+<Fragment slot="scripts"><script src="../scripts/pages/about.ts"></script></Fragment>
+</Base>

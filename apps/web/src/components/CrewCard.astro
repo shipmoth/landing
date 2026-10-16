@@ -1,0 +1,18 @@
+---
+// A crew crate: name in the top edge, portrait, bio, role in the bottom edge.
+import { accent } from '../content/colours';
+import type { Mate } from '../content/about';
+
+type Props = Mate;
+
+const { name, colour, portrait, bio, tag } = Astro.props;
+// the art files end with a newline for editors' sake; the <pre> should not
+const art = portrait.replace(/\r?\n$/, '');
+---
+<li class="mate" data-name={name} style={accent(colour)}>
+  <h3>{name}</h3>
+  {/* photo: replace the <pre> below with <img src="img/arjun.jpg" alt="Arjun"> (this card's name). Photos show as 4:5 portraits. */}
+  <div class="portrait art"><pre aria-hidden="true" set:html={art}></pre></div>
+  <p class="bio">{bio}</p>
+  <p class="tag">{tag}</p>
+</li>

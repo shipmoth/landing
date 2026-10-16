@@ -1,0 +1,18 @@
+---
+// One photo on the lab wall, captioned in its bottom edge.
+import { accent } from '../content/colours';
+import type { LabPhoto } from '../content/about';
+
+interface Props extends LabPhoto {
+  /** 1-based position; shown as the caption number and used for the photo's file name */
+  n: number;
+}
+
+const { colour, ratio, doodle, caption, n } = Astro.props;
+const num = String(n).padStart(2, '0');
+---
+<figure style={`${accent(colour)};--r:${ratio}`}>
+  {/* photo: replace the <pre> below with <img src="img/lab-1.jpg" alt="whiteboard, day three"> (this tile's number and caption) */}
+  <div class="pic"><pre aria-hidden="true">{doodle}</pre></div>
+  <figcaption><span>{num}</span> {caption}</figcaption>
+</figure>

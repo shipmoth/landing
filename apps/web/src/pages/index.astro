@@ -1,0 +1,63 @@
+---
+import Base from '../layouts/Base.astro';
+import GoalTile from '../components/GoalTile.astro';
+import ProductCard from '../components/ProductCard.astro';
+import Contact from '../components/Contact.astro';
+import { goals, products, steps } from '../content/home';
+import { HOME_TAGLINE } from '../content/taglines';
+---
+<Base
+  page="home"
+  title="shipmoth"
+  description="shipmoth is an indie software factory. we build unrelated apps with one goal: make everyday things take less time, less space and fewer steps. lride, lwatch, lglow."
+>
+
+<section class="hero">
+  <div id="orbit" role="img" aria-label="a moth drawn in glowing ascii characters, slowly flapping its wings"></div>
+  <h1 class="title"><span class="sr">shipmoth</span><canvas class="word" aria-hidden="true"></canvas></h1>
+  <p class="type"><span id="typed"><noscript>{HOME_TAGLINE}</noscript></span><span class="caret" aria-hidden="true">&#9612;</span></p>
+</section>
+
+<hr>
+
+<section>
+  <p>we are a small team of indie hackers running a software factory. odd ideas go in one end. useful apps come out the other.</p>
+  <p>the products have nothing in common on paper. one helps you <i class="y">learn to drive</i>. one helps you <i class="v">find a film and someone to watch it with</i>. one helps you <i class="p">pick a haircut before you commit to it</i>. next month it could be something else entirely.</p>
+  <p>what ties them together is one rule: every product has to take something you already do, and make it take <b>less time, less space, and fewer steps</b>.</p>
+</section>
+
+<hr>
+
+<section>
+  <h2>what we go after</h2>
+  <ul class="gofor">
+    {goals.map((goal) => <GoalTile {...goal} />)}
+  </ul>
+  <p class="dim gofor-note">if tech can reach it, it is fair game. if it only annoys us, we fix it in the shop and keep it there.</p>
+</section>
+
+<hr>
+
+<section>
+  <h2>off the line</h2>
+  <p class="dim">three products so far. unrelated by design. more on the way.</p>
+</section>
+
+{products.map((product) => <ProductCard {...product} />)}
+
+<hr>
+
+<section>
+  <h2>how the factory runs</h2>
+  <ol class="flow">
+    {steps.map((step) => <li><b>{step.title}</b><span>{step.text}</span></li>)}
+  </ol>
+  <pre class="loop" role="img" aria-label="then back to step one">'----------- back to 01 -----------'</pre>
+</section>
+
+<hr>
+
+<Contact />
+
+<Fragment slot="scripts"><script src="../scripts/pages/index.ts"></script></Fragment>
+</Base>

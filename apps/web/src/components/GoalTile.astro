@@ -1,0 +1,15 @@
+---
+// One "what we go after" tile: icon, name, a meter that drains in css, and a line of text.
+import { accent } from '../content/colours';
+import type { Goal } from '../content/home';
+
+type Props = Goal;
+
+const { name, colour, icon, text } = Astro.props;
+---
+<li style={accent(colour)}>
+  <pre class="ico" aria-hidden="true">{icon}</pre>
+  <b>{name}</b>
+  <span class="meter" aria-hidden="true">[<span class="track"><span class="fill">##########</span></span>]</span>
+  <span class="txt">{text}</span>
+</li>

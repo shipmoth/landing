@@ -1,0 +1,64 @@
+---
+// Shared page shell: head, the swarm canvas, the header, and the idea line footer at the end of <main>.
+// Each page passes its own bundled script in the "scripts" slot, which renders after </main>.
+import '../styles/global.css';
+import Header from '../components/Header.astro';
+import IdeaLine from '../components/IdeaLine.astro';
+import { rootHref, type Page } from './links';
+
+interface Props {
+  title: string;
+  description: string;
+  page: Page;
+  /** share of the usual number of background moths, e.g. "0.35" */
+  moths?: string;
+}
+
+const { title, description, page, moths } = Astro.props;
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{title}</title>
+<meta name="description" content={description}>
+<meta name="theme-color" content="#000000">
+<link rel="icon" href={rootHref(page, 'favicon.svg')} type="image/svg+xml">
+{/* the same page as markdown and as plain text, written next to it by src/build/plain-pages.ts */}
+<link rel="alternate" type="text/markdown" href="index.md">
+<link rel="alternate" type="text/plain" href="index.txt">
+{/* Without JavaScript: the canvases (hero moth, wordmark, swarm, crew orbit) and the idea line are
+    never drawn, [ copy ] and the signup form do nothing (the form would put the address in the URL),
+    so hide them and show the h1's text as the title instead. Inert when scripts run: the parser
+    then reads <noscript> as plain text. The ascii frames fall back to css borders on their own.
+    `#contact > p:last-of-type` is the paragraph inviting the signup (components/Contact.astro); it
+    has no class of its own, so it is picked out by position: keep it the last paragraph there.
+    The `html` prefix outranks global.css, which Astro places after this. */}
+<noscript><style is:inline>
+html .title{margin-top:0}
+html .title .sr{position:static;display:block;width:auto;height:auto;overflow:visible;clip:auto;white-space:nowrap;
+  font-size:2em;letter-spacing:.3em;padding-left:.3em;color:var(--y);text-shadow:0 0 12px rgba(245,182,58,.45)}
+html #orbit,html #swarm,html #crew,html .title .word,html .belt-cap,html #belt,html #copy,
+html #form,html #contact > p:last-of-type,html #out{display:none}
+</style></noscript>
+</head>
+<body data-moths={moths}>
+<canvas id="swarm" aria-hidden="true"></canvas>
+<div id="perch" aria-hidden="true" hidden></div>
+
+<Header page={page} />
+
+<main>
+
+<slot />
+
+<hr>
+
+<IdeaLine />
+
+</main>
+
+<slot name="scripts" />
+</body>
+</html>

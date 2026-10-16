@@ -1,0 +1,401 @@
+/* shipmoth: black screen, one monospace face, one column. colour lives in the drawings. */
+:root{
+  color-scheme:dark;
+  --bg:#000;
+  --fg:#d6d6d6;
+  --dim:#757575;
+  --y:#f5b63a;   /* amber: lride, headlights, moth eyes */
+  --r:#ff5f5f;   /* red: the L plate */
+  --t:#45d6c8;   /* teal: glass */
+  --v:#a995ff;   /* violet: lwatch, the screen */
+  --p:#ff7fb8;   /* pink: lglow, the mirror */
+  --g:#8be28b;   /* green */
+  --w:#fff;
+  --mono:ui-monospace,"SF Mono",Menlo,Consolas,"Liberation Mono","Courier New",monospace;
+}
+*{box-sizing:border-box}
+html{background:var(--bg);overflow-x:clip}
+body{
+  margin:0;background:var(--bg);color:var(--fg);
+  font:15px/1.65 var(--mono);
+  padding:28px 20px 64px;
+  max-width:76ch;margin-inline:auto;
+}
+::selection{background:var(--fg);color:var(--bg)}
+a{color:inherit}
+h1,h2,p,ol,ul,pre{margin:0}
+pre{font:inherit;white-space:pre;overflow-x:auto;line-height:1.2}
+b{font-weight:600}
+i{font-style:normal}
+.dim,i.d{color:var(--dim)}
+i.y{color:var(--y)} i.r{color:var(--r)} i.t{color:var(--t)} i.v{color:var(--v)}
+i.p{color:var(--p)} i.g{color:var(--g)} i.w{color:var(--w)}
+b.r{color:var(--r)}
+hr{border:0;border-top:1px dashed var(--dim);margin:56px 0;opacity:.6}
+section{display:grid;gap:18px}
+h1{font-size:inherit;font-weight:600}
+h2{font-size:inherit;font-weight:600}
+h2::before{content:"## ";content:"## " / "";color:var(--dim)}
+p{max-width:64ch}
+
+#swarm{position:fixed;inset:0;width:100%;height:100%;pointer-events:none;z-index:0}
+.top,main{position:relative;z-index:1}
+.top{display:flex;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:56px}
+#spin{display:inline-block;width:1ch;color:var(--y)}
+
+.hero{gap:20px;text-align:center}
+.sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+
+/* wordmark: plasma-tide ascii, drawn to a canvas in js. features/wordmark.ts sizes the art from
+   .title's width (the text column) and draws it on a canvas PAD px wider on each side, room for
+   letters the pointer pushes aside and for the ripples. that canvas is wider than the column, so it
+   is centred on it with margins that resolve against the h1 (calc(50% - width / 2), set by the
+   script) and its transparent PAD spills into the page gutter (html clips sideways overflow).
+   min-width:0, because .title is a grid item: with the default (auto) its min-content, the wide
+   canvas, could hold the hero's track open (it did, with the canvas's old margin:auto), pushing the
+   centred moth and tagline right of centre and past the screen's right edge. the column decides
+   the width, never the canvas. (the centring margins cancel the canvas out of .title's min-content
+   too, as percentages count as zero there, but that is incidental to how it is centred.) */
+.title{margin-top:clamp(-60px,-5vw,0px);line-height:1;min-width:0}
+.word{display:block;max-width:none}
+/* until wordmark.ts lays the canvas out (it sets an inline width, height and margin, so this stops
+   matching), keep the room it will take, so the page does not jump down when the script runs.
+   features/wordmark.ts: cw = min(.title width * SHARE / W, MAX_CELL), the canvas is W*cw + 2*PAD by
+   H*lh + 2*PAD with a -PAD margin, so it fills W*cw by H*lh, where lh = 1.05 * cw / r and r is the
+   font's 'M' advance per px of font size. W, H = 315, 34 (the wordmark art), SHARE 0.8, MAX_CELL
+   1.75 -> width min(80%, 315 * 1.75px), height width * 34 * 1.05 / (315 * r). css cannot know r:
+   0.6 (Menlo, SF Mono, Liberation, DejaVu) slightly undershoots Consolas (~0.55) rather than overshoot. */
+.title .word:not([style]){width:min(80%,551.25px);height:auto;aspect-ratio:189/35.7;margin:0 auto}
+#orbit{
+  width:min(1100px,100vw - 40px);margin-left:calc(50% - min(1100px,100vw - 40px)/2);
+  margin-bottom:8px;display:flex;justify-content:center;
+  perspective:1700px;perspective-origin:50% 40%;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;
+}
+/* the same for the hero moth, until hero-moth.ts puts its .stage into #orbit (then :empty stops
+   matching). features/hero-moth.ts: cw = min(#orbit width / W, MAX_CELL), the stage is H rows of
+   lh = 1.05 * cw / r. W, H = 314, 102 (the hero art), so with r = 0.6 as above the height is
+   #orbit width * 102 * 1.05 / (314 * 0.6) = width * 178.5 / 314 (MAX_CELL 4.2px never binds: the
+   width caps at 1100px, 3.5px a column). */
+#orbit:empty{min-height:calc(min(1100px,100vw - 40px) * 178.5 / 314)}
+#orbit .stage{display:flex;transform-style:preserve-3d;will-change:transform}
+#orbit canvas{display:block;will-change:transform,opacity}
+#orbit .wl{transform-origin:100% 50%}
+#orbit .wr{transform-origin:0 50%}
+.type{min-height:1.65em;max-width:none}
+.caret{display:inline-block;animation:blink 1s steps(1) infinite;margin-left:1px}
+@keyframes blink{50%{opacity:0}}
+
+/* products: drawing, then words. the product's colour comes in through --c */
+.prod{gap:14px;margin-top:40px}
+.prod h2{color:var(--w)}
+.prod h2::before{color:var(--c)}
+.prod .lede{color:var(--c)}
+.feat{list-style:none;padding:0;display:grid;gap:8px;max-width:64ch}
+.feat li{display:grid;grid-template-columns:9ch 1fr;gap:8px}
+.feat li span{color:var(--c,var(--fg))}
+.feat li span.y{color:var(--y)} .feat li span.v{color:var(--v)} .feat li span.p{color:var(--p)}
+.go{color:var(--c);text-decoration:none}
+.go:hover{background:var(--c);color:var(--bg)}
+
+ol{padding-left:3ch;display:grid;gap:10px}
+ol li::marker{color:var(--dim)}
+
+button{font:inherit;color:var(--fg);background:none;border:0;padding:0;cursor:pointer}
+button:hover{color:var(--w);text-decoration:underline}
+button:focus-visible,input:focus-visible,.go:focus-visible{outline:1px dashed var(--fg);outline-offset:3px}
+
+form{display:flex;align-items:center;gap:8px}
+form label{color:var(--dim)}
+form{flex-wrap:wrap;cursor:text}
+input[type=email]{
+  font:inherit;color:var(--fg);background:none;border:0;border-bottom:1px dashed var(--dim);
+  padding:4px 2px;outline:none;width:26ch;max-width:100%;text-align:left;caret-color:var(--g);
+}
+input[type=email]::placeholder{color:var(--dim);opacity:.7}
+input[type=email]:focus{border-bottom-color:var(--g)}
+input[type=email]:focus-visible{outline:none}
+form button{color:var(--g)}
+#out:empty{display:none}
+
+footer{display:grid;gap:18px}
+footer pre{line-height:1.5}
+
+@media (prefers-reduced-motion:reduce){.caret{animation:none}}
+
+/* ---------- centred body ----------
+   everything in main sits on the centre line. lists that pair a label with text
+   stack the label above its line, and numbered steps drop the marker for a
+   centred counter so they still read in order. */
+main{text-align:center}
+/* the column is the container for the <pre> lines that must not wrap: the signed message (39
+   columns) and the flowchart's "back to 01" line (36). On a narrow screen their type shrinks with
+   the column instead, so they never stick out of it (320px, the narrowest screen supported, has a
+   280px column): font-size min(1em, column / n), where n em is a little more than the line's width
+   at 0.6em a column (Menlo and friends; Consolas is narrower), so they keep the body's 15px down to
+   a column of 15n px. 100vw - 40px (body's padding) stands in where container units are missing. */
+main{container-type:inline-size}
+main section{justify-items:center}
+main .hero{justify-items:stretch}   /* the moth centres itself with a breakout margin; grid centring would shift it */
+main p{margin-inline:auto}
+.feat{justify-items:center}
+.feat li{display:flex;flex-direction:column;align-items:center;gap:0;max-width:56ch}
+.feat li span{font-size:.85em;letter-spacing:.08em}
+ol{list-style:none;padding:0;counter-reset:step;justify-items:center;max-width:60ch}
+ol li{counter-increment:step;max-width:56ch}
+ol li::before{content:counter(step,decimal-leading-zero);display:block;color:var(--dim);font-size:.85em}
+form{justify-content:center}
+#out{text-align:center}
+footer{justify-items:center;text-align:center}
+footer pre.signed{text-align:left;width:max-content;max-width:100%;line-height:1.6}
+footer pre.signed{font-size:min(1em,(100vw - 40px) / 24);font-size:min(1em,100cqi / 24)}   /* (see main, above) */
+footer pre.signed .mid{display:block;text-align:center}   /* even-length line in an odd-width box: let the browser centre it to the pixel */
+/* a soft dark halo behind text, so moths flying behind the words never cut through them */
+main p,main li,main h2,footer pre,.belt-cap,.type{text-shadow:0 0 3px var(--bg),0 0 6px var(--bg),0 0 10px var(--bg)}
+
+/* ---------- the idea line ---------- */
+.belt-cap{margin-bottom:-6px}
+.belt-cap > span{white-space:nowrap}   /* a narrow screen breaks the caption after "the idea line ·", not inside a count */
+#belt{line-height:1.25;text-align:left;max-width:100%;overflow:hidden;width:100%}
+#belt .k{color:var(--dim)} #belt .ok{color:var(--g)} #belt .no{color:var(--r)}
+#belt .lab{color:var(--fg)} #belt .st{color:var(--y)}
+
+/* the idle moth, once it has landed, sits above the text */
+#perch{position:fixed;left:0;top:0;z-index:4;pointer-events:none;color:#ffe2a6;font-size:19px;font-weight:600;line-height:1;
+  white-space:pre;transform:translate(-50%,-100%);text-shadow:0 0 8px rgba(245,182,58,.45)}
+
+/* ---------- product cards ----------
+   each product is a box drawn like the crates on the idea line: a dashed border in the
+   product colour, the name set into the top edge, the link set into the bottom edge.
+   a solid background keeps the swarm out from behind the words. */
+main .prod{
+  position:relative;margin-top:48px;padding:40px clamp(18px,4vw,36px) 40px;gap:16px;
+  border:1px dashed color-mix(in srgb,var(--c) 55%,transparent);background:var(--bg);
+  width:100%;max-width:66ch;margin-inline:auto;
+}
+main .prod + .prod{margin-top:56px}
+/* corner marks, like +---+ */
+main .prod::before,main .prod::after{
+  content:"+";content:"+" / "";position:absolute;color:var(--c);line-height:1;font-size:15px;background:var(--bg);
+}
+main .prod::before{top:0;left:0;transform:translate(-50%,-50%)}
+main .prod::after{bottom:0;right:0;transform:translate(50%,50%)}
+/* name in the top edge */
+main .prod h2{
+  position:absolute;top:0;left:50%;transform:translate(-50%,-50%);
+  background:var(--bg);padding:0 12px;white-space:nowrap;color:var(--w);
+}
+main .prod h2::before{content:"[ ";content:"[ " / "";color:var(--c)}
+main .prod h2::after{content:" ]";content:" ]" / "";color:var(--c)}
+/* link in the bottom edge */
+main .prod > p:last-child{
+  position:absolute;bottom:0;left:50%;transform:translate(-50%,50%);
+  background:var(--bg);padding:0 12px;white-space:nowrap;margin:0;
+}
+main .prod .lede{font-weight:600;max-width:48ch}
+main .prod .lede + p{color:color-mix(in srgb,var(--fg) 82%,var(--bg));max-width:54ch}
+/* before and after, side by side: the old way faded and struck through */
+main .prod .feat{
+  display:grid;grid-template-columns:1fr 1fr;gap:0;width:100%;max-width:none;
+  border-top:1px dashed color-mix(in srgb,var(--c) 30%,transparent);padding-top:16px;margin-top:4px;
+}
+main .prod .feat li{max-width:none;padding:0 14px;font-size:.93em}
+main .prod .feat li + li{border-left:1px dashed color-mix(in srgb,var(--c) 30%,transparent)}
+main .prod .feat li span{margin-bottom:4px}
+main .prod .feat li.was{color:var(--dim)}
+main .prod .feat li.was span{color:var(--dim)}
+main .prod .feat li.was s{text-decoration-color:color-mix(in srgb,var(--dim) 70%,transparent)}
+main .prod .feat li.now span{color:var(--c)}
+@media (max-width:560px){
+  main .prod .feat{grid-template-columns:1fr;row-gap:14px}
+  main .prod .feat li + li{border-left:0}
+}
+
+/* ---------- how the factory runs: an ascii flowchart ----------
+   boxes joined by arrows; a soft amber pulse walks down the chain, box, arrow, box,
+   then along the return line back to the top. one full pass every 6s. */
+main .flow{list-style:none;padding:0;margin:8px 0 0;display:grid;justify-items:center;gap:0;width:100%;max-width:none;counter-reset:step}
+main .flow li{
+  counter-increment:step;position:relative;width:100%;max-width:46ch;margin-bottom:76px;
+  padding:22px 20px 16px;background:var(--bg);display:grid;gap:4px;
+  border:1px dashed color-mix(in srgb,var(--fg) 30%,transparent);
+  animation:flowbox 6s infinite;
+}
+main .flow li:last-child{margin-bottom:0}
+main .flow li b{color:var(--w)}
+main .flow li span{color:var(--dim);font-size:.92em}
+/* step number set into the top edge. scripts/features/ascii-frames.ts measures it by parsing the computed
+   `content` (ignoring the `/ ""` alt text), so keep it a counter between two strings */
+main .flow li::before{
+  content:"[ " counter(step,decimal-leading-zero) " ]";content:"[ " counter(step,decimal-leading-zero) " ]" / "";display:block;position:absolute;top:0;left:50%;
+  transform:translate(-50%,-50%);background:var(--bg);padding:0 8px;color:var(--y);font-size:.85em;
+}
+/* the arrow down to the next step */
+main .flow li::after{
+  content:"|\A|\A v";content:"|\A|\A v" / "";white-space:pre;position:absolute;top:100%;left:50%;transform:translateX(-50%);
+  line-height:1.05;padding-top:8px;color:var(--dim);animation:flowarrow 6s infinite;
+}
+main .flow li:last-child::after{content:"|\A|";content:"|\A|" / "";}
+main .flow li:nth-child(1){animation-delay:0s}    main .flow li:nth-child(1)::after{animation-delay:.6s}
+main .flow li:nth-child(2){animation-delay:1.2s}  main .flow li:nth-child(2)::after{animation-delay:1.8s}
+main .flow li:nth-child(3){animation-delay:2.4s}  main .flow li:nth-child(3)::after{animation-delay:3s}
+main .flow li:nth-child(4){animation-delay:3.6s}  main .flow li:nth-child(4)::after{animation-delay:4.2s}
+main .flow li:nth-child(5){animation-delay:4.8s}  main .flow li:nth-child(5)::after{animation-delay:5.4s}
+/* overflow:visible: the glyphs overflow the 1em line box by ~1px, which made this <pre> a scroll
+   region (a stray scrollbar on Windows, and unreachable by keyboard). it also leaves the pulse glow unclipped. */
+main .loop{margin-top:44px;color:var(--dim);line-height:1;overflow:visible;animation:flowarrow 6s infinite;animation-delay:5.7s;
+  font-size:min(1em,(100vw - 40px) / 22);font-size:min(1em,100cqi / 22)}   /* 36 columns (see main) */
+@keyframes flowbox{0%,16%,100%{border-color:color-mix(in srgb,var(--fg) 30%,transparent)}6%{border-color:var(--y)}}
+@keyframes flowarrow{0%,14%,100%{color:var(--dim);text-shadow:none}5%{color:var(--y);text-shadow:0 0 8px rgba(245,182,58,.6)}}
+@media (prefers-reduced-motion:reduce){main .flow li,main .flow li::after,main .loop{animation:none}}
+
+/* ---------- what we go after: three tiles with an icon and a shrinking meter ---------- */
+main .gofor{
+  list-style:none;padding:0;margin:8px 0 0;width:100%;max-width:none;
+  display:grid;grid-template-columns:repeat(3,minmax(0,1fr));
+}
+main .gofor li{display:grid;justify-items:center;align-content:start;gap:10px;padding:6px 16px 4px;text-align:center}
+main .gofor li + li{border-left:1px dashed color-mix(in srgb,var(--fg) 22%,transparent)}
+main .gofor .ico{color:var(--c);line-height:1.1;font-size:14px;text-shadow:0 0 10px color-mix(in srgb,var(--c) 45%,transparent)}
+main .gofor b{color:var(--c);letter-spacing:.08em}
+main .gofor .txt{color:color-mix(in srgb,var(--fg) 80%,var(--bg));font-size:.9em;line-height:1.55}
+/* meter: ten blocks that drain to three, a character at a time, then refill */
+main .gofor .meter{color:var(--dim);white-space:nowrap;font-size:.9em}
+main .gofor .track{position:relative;display:inline-block;width:10ch;vertical-align:bottom}
+main .gofor .track::before{content:"..........";content:".........." / "";color:var(--dim)}
+main .gofor .fill{position:absolute;left:0;top:0;width:10ch;overflow:hidden;white-space:nowrap;color:var(--c);animation:drain 5s steps(7,end) infinite}
+main .gofor li:nth-child(2) .fill{animation-delay:.4s}
+main .gofor li:nth-child(3) .fill{animation-delay:.8s}
+@keyframes drain{0%,18%{width:10ch}62%,92%{width:3ch}100%{width:10ch}}
+main .gofor-note{margin-top:22px;padding-top:16px;border-top:1px dashed color-mix(in srgb,var(--fg) 18%,transparent);max-width:54ch;font-size:.9em}
+@media (max-width:640px){
+  main .gofor{grid-template-columns:1fr;row-gap:28px}
+  main .gofor li + li{border-left:0}
+}
+@media (prefers-reduced-motion:reduce){main .gofor .fill{animation:none;width:3ch}}
+
+/* ---------- header nav ---------- */
+.nav a{text-decoration:none;color:var(--fg)}
+.nav a:hover{color:var(--y)}
+.nav a[aria-current="page"]{color:var(--w)}
+.nav a:not([aria-current="page"]){color:var(--dim)}
+.nav a:not([aria-current="page"]):hover{color:var(--y)}
+
+
+
+
+
+/* ---------- about page: built from the home page's parts ---------- */
+#crew{display:block;margin:0 auto;max-width:100%}
+/* until crew-orbit.ts sizes the canvas (inline width and height): features/crew-orbit.ts makes it
+   W = min(its parent's width, MAX_WIDTH 760) by H = W * 0.48, kept within 260..340px */
+#crew:not([style]){width:min(100%,760px);height:auto;aspect-ratio:25/12;min-height:260px;max-height:340px}
+.crew-hero{gap:18px}
+
+/* the crew: crate cards, name in the top edge, role in the bottom edge */
+main .crew{list-style:none;padding:0;margin:20px 0 0;width:100%;max-width:none;
+  display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:64px 32px}
+main .mate{
+  position:relative;display:grid;justify-items:center;gap:14px;padding:38px 18px 34px;
+  border:1px dashed color-mix(in srgb,var(--c) 50%,transparent);background:var(--bg);
+}
+main .mate::before,main .mate::after{content:"+";content:"+" / "";position:absolute;color:var(--c);line-height:1;background:var(--bg)}
+main .mate::before{top:0;left:0;transform:translate(-50%,-50%)}
+main .mate::after{bottom:0;right:0;transform:translate(50%,50%)}
+main .mate h3{position:absolute;top:0;left:50%;transform:translate(-50%,-50%);margin:0;padding:0 12px;
+  background:var(--bg);color:var(--w);font-size:inherit;white-space:nowrap}
+main .mate h3::before{content:"[ ";content:"[ " / "";color:var(--c)}
+main .mate h3::after{content:" ]";content:" ]" / "";color:var(--c)}
+main .mate .portrait{display:grid;place-items:center;min-height:9.5em}
+main .mate .portrait pre{color:var(--c);line-height:1.15;text-shadow:0 0 12px color-mix(in srgb,var(--c) 40%,transparent)}
+main .crew.no-pics .portrait{display:none}
+/* full ascii pictures (src/art/portraits, converted from .ans files) rather than doodles: tiny type, colours inline */
+main .mate .portrait.art{width:100%;container-type:inline-size}
+main .mate .portrait.art pre{font-size:min(5px,1.65cqi);line-height:1.2;overflow:visible;
+  text-shadow:0 0 3px rgba(255,120,40,.35)}
+main .mate .portrait.art i{font-style:normal}
+main .mate .portrait img{width:100%;max-width:220px;aspect-ratio:4/5;object-fit:cover;display:block}
+main .mate p{font-size:.92em;color:color-mix(in srgb,var(--fg) 82%,var(--bg));max-width:30ch}
+main .mate .tag{position:absolute;bottom:0;left:50%;transform:translate(-50%,50%);margin:0;padding:0 12px;
+  background:var(--bg);color:var(--c);font-size:.85em;white-space:nowrap;max-width:none}
+@media (max-width:640px){main .crew{grid-template-columns:1fr;gap:56px}}
+
+/* the lab: a masonry photo wall, mixed shapes that interlock */
+main .wall{
+  width:min(1000px,100vw - 40px);margin-left:calc(50% - min(1000px,100vw - 40px)/2);margin-top:24px;
+  columns:4;column-gap:12px;text-align:left;
+}
+main .wall figure{margin:0 0 34px;break-inside:avoid;position:relative;padding:8px 8px 18px;
+  border:1px dashed color-mix(in srgb,var(--c) 50%,transparent);background:var(--bg);transition:border-color .3s}
+main .wall figure::before,main .wall figure::after{content:"+";content:"+" / "";position:absolute;color:var(--c);line-height:1;background:var(--bg);font-size:14px}
+main .wall figure::before{top:0;left:0;transform:translate(-50%,-50%)}
+main .wall figure::after{bottom:0;right:0;transform:translate(50%,50%)}
+main .wall .pic{aspect-ratio:var(--r);display:grid;place-items:center;overflow:hidden;
+  transition:transform .6s cubic-bezier(.2,.8,.2,1)}
+main .wall .pic pre{color:var(--c);font-size:13px;line-height:1.15;opacity:.85;text-shadow:none}
+main .wall .pic img{width:100%;height:100%;object-fit:cover;display:block}
+main .wall figure:hover{border-color:var(--c)}
+main .wall figure:hover .pic{transform:scale(1.03)}
+/* caption set into the bottom edge, like the role on the crew cards */
+main .wall figcaption{position:absolute;bottom:0;left:50%;transform:translate(-50%,50%);padding:0 10px;
+  background:var(--bg);font-size:12px;color:#9a9a9a;white-space:nowrap;max-width:calc(100% - 24px);
+  overflow:hidden;text-overflow:ellipsis;text-shadow:none}
+main .wall figcaption span{color:var(--c);margin-right:6px}
+main .wall figure:hover figcaption{color:var(--c)}
+@media (max-width:900px){main .wall{columns:3}}
+@media (max-width:600px){main .wall{columns:2;column-gap:10px}main .wall figure{margin-bottom:30px}main .wall .pic pre{font-size:10px}main .wall figcaption{font-size:11px;padding:0 6px;max-width:calc(100% - 12px)}main .wall figcaption span{display:none}}
+
+/* ---------- ascii frames ----------
+   every box border is drawn with real characters in the page font: "+" corners,
+   "-" along the top and bottom, "|" down the sides. scripts/features/ascii-frames.ts adds the frame to each
+   box and sets html.ascii; without it the old css borders stay as a fallback. */
+.ab{position:absolute;inset:0;pointer-events:none;z-index:0;font-size:15px;line-height:1;
+  color:var(--ab,color-mix(in srgb,var(--c,var(--fg)) 55%,transparent));text-shadow:none;font-weight:400}
+.ab-t,.ab-b{position:absolute;left:-.5ch;right:-.5ch;height:1em;display:flex;white-space:nowrap;overflow:hidden}
+.ab-t{top:-.5em} .ab-b{bottom:-.5em}
+.ab-t .ab-h,.ab-b .ab-h{flex:1;overflow:hidden;min-width:0}
+.ab-t i,.ab-b i{font-style:normal;flex:none}
+.ab-l,.ab-r{position:absolute;top:.5em;bottom:.5em;width:1ch;overflow:hidden;white-space:pre;text-align:center}
+.ab-l{left:-.5ch} .ab-r{right:-.5ch}
+html.ascii main .prod,html.ascii main .mate,html.ascii main .wall figure,html.ascii main .flow li{border:0}
+html.ascii main .prod::before,html.ascii main .prod::after,
+html.ascii main .mate::before,html.ascii main .mate::after,
+html.ascii main .wall figure::before,html.ascii main .wall figure::after{content:none}
+/* titles and captions set into an edge sit above the frame */
+main .prod h2,main .prod > p:last-child,main .mate h3,main .mate .tag,main .wall figcaption{z-index:1}
+main .flow li::before{z-index:1}
+main .flow .ab{--ab:color-mix(in srgb,var(--fg) 32%,transparent);animation:flowframe 6s infinite;animation-delay:inherit}
+main .wall figure:hover .ab,main .mate:hover .ab{--ab:var(--c)}
+@keyframes flowframe{0%,16%,100%{color:color-mix(in srgb,var(--fg) 32%,transparent)}6%{color:var(--y)}}
+
+/* character lines instead of thin dashed borders */
+hr{border:0;height:1em;line-height:1;overflow:hidden;white-space:nowrap;color:var(--dim);opacity:.7}
+hr::before{content:"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";content:"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------" / ""}
+main .prod .feat{position:relative;border-top:0}
+main .prod .feat::before{content:"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";content:"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------" / "";position:absolute;top:-.5em;left:0;right:0;height:1em;line-height:1;overflow:hidden;white-space:nowrap;
+  color:color-mix(in srgb,var(--c) 35%,transparent)}
+main .prod .feat li + li,main .gofor li + li{border-left:0;position:relative}
+main .prod .feat li + li::before,main .gofor li + li::before{content:"|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A";content:"|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A|\A" / "";position:absolute;left:-.5ch;top:0;bottom:0;width:1ch;
+  line-height:1;overflow:hidden;white-space:pre;font-size:15px;text-align:center;text-decoration:none}
+main .prod .feat li + li::before{color:color-mix(in srgb,var(--c) 35%,transparent)}
+main .gofor li + li::before{color:color-mix(in srgb,var(--fg) 25%,transparent)}
+main .gofor-note{border-top:0;position:relative}
+main .gofor-note::before{content:"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------";content:"----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------" / "";position:absolute;top:-.5em;left:0;right:0;height:1em;line-height:1;overflow:hidden;white-space:nowrap;
+  color:color-mix(in srgb,var(--fg) 22%,transparent)}
+@media (max-width:560px){main .prod .feat li + li::before{content:none}}
+@media (max-width:640px){main .gofor li + li::before{content:none}}
+@media (prefers-reduced-motion:reduce){main .flow .ab{animation:none}}
+/* photo wall: masonry columns break anything that overflows a tile, so its frame sits just inside */
+main .wall .ab{inset:.5em .5ch}
+html.ascii main .wall figure{padding:calc(8px + .5em) calc(8px + .5ch) calc(18px + .5em)}
+main .wall figcaption{bottom:.5em}
+
+/* ---------- transparent boxes: the light and the moths pass through them ---------- */
+html.ascii main .prod,html.ascii main .mate,html.ascii main .wall figure,html.ascii main .flow li{background:transparent}
+html.ascii main .prod h2,html.ascii main .prod > p:last-child,html.ascii main .mate h3,html.ascii main .mate .tag,
+html.ascii main .wall figcaption,html.ascii main .flow li::before{background:transparent}
+/* the frame leaves a gap for the title in each edge */
+.ab-gap{flex:none}
+.ab-t .ab-gap{width:var(--gt,0px)}
+.ab-b .ab-gap{width:var(--gb,0px)}
+.ab-hl{direction:rtl}   /* left half hugs the gap, so any clipped dash sits by the corner */

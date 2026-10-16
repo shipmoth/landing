@@ -1,0 +1,19 @@
+---
+// A product crate: name set into the top edge, before/after side by side, the link in the bottom edge.
+import { accent } from '../content/colours';
+import type { Product } from '../content/home';
+
+type Props = Product;
+
+const { id, colour, lede, pitch, before, after, href } = Astro.props;
+---
+<section class="prod" id={id} style={accent(colour)}>
+  <h2>{id}</h2>
+  <p class="lede">{lede}</p>
+  <p>{pitch}</p>
+  <ul class="feat">
+    <li class="was"><span>before</span><s>{before}</s></li>
+    <li class="now"><span>after</span>{after}</li>
+  </ul>
+  <p><a class="go" href={href}>[ open {id} ]</a></p>
+</section>

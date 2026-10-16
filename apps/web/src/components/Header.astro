@@ -1,0 +1,14 @@
+---
+import { pageHref, type Page } from '../layouts/links';
+
+interface Props {
+  page: Page;
+}
+
+const { page } = Astro.props;
+const current = (p: Page) => (p === page ? 'page' : undefined);
+---
+<header class="top">
+  <nav class="nav"><a href={pageHref(page, 'home')} aria-current={current('home')}>shipmoth</a> <span class="dim" aria-hidden="true">/</span> <a href={pageHref(page, 'about')} aria-current={current('about')}>about</a></nav>
+  <span class="dim"><span id="spin" aria-hidden="true">|</span> an indie software factory</span>
+</header>
