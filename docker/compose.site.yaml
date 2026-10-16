@@ -1,0 +1,15 @@
+# Override: serve a folder from the host instead of the site built into the image, e.g. to try
+# the nginx config against a fresh `pnpm build` without rebuilding the image:
+#
+#   NGINX_SITE_DIR=./apps/web/dist docker compose -f compose.yaml -f docker/compose.site.yaml up -d --build --wait
+#
+# (relative paths are resolved from the repository root, the folder of the first -f file).
+# The folder should look like the build output: index.html, index.md, index.txt, about/index.*,
+# favicon.svg (and optionally the *.gz copies the image build makes).
+services:
+  nginx:
+    volumes:
+      - type: bind
+        source: ${NGINX_SITE_DIR:?set NGINX_SITE_DIR to the folder to serve}
+        target: /usr/share/nginx/html
+        read_only: true

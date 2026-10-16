@@ -1,0 +1,22 @@
+# Build context for docker/web.Dockerfile: sources and manifests only. Dependencies are installed
+# and the site is built inside the image, so nothing generated on the host goes in.
+**/node_modules
+**/dist
+**/.turbo
+**/.astro
+**/test-results
+**/playwright-report
+**/blob-report
+**/*.log
+.git
+.github
+.vscode
+.idea
+.env
+.env.*
+# not needed to build the site (keeps edits there from invalidating the build layer)
+apps/web/tests
+apps/web/playwright*.config.ts
+packages/*/test
+compose*.yaml
+docker/**/*.yaml

@@ -1,0 +1,9 @@
+# Layered on top of compose.yaml by tests/nginx/global-setup.ts (project shipmoth-nginx-test).
+# Adds a page that only has index.html, to test that a missing representation falls back to it.
+services:
+  nginx:
+    volumes:
+      - type: bind
+        source: ${NGINX_TEST_FIXTURES:?set by tests/nginx/global-setup.ts}/html-only
+        target: /usr/share/nginx/html/__html-only
+        read_only: true
