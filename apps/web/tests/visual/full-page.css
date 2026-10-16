@@ -1,0 +1,2 @@
+/* hidden in full-page captures (tests/visual/snapshots.spec.ts): the fixed layers would be stretched */
+#swarm, #perch { visibility: hidden !important; }
