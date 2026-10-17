@@ -56,3 +56,56 @@ export async function lightAround(page: Page, x: number, y: number, radius = 120
 export async function idleMothFlying(page: Page): Promise<boolean> {
   return (await ink(page.locator('#swarm'), { minAlpha: 255 })) > 0;
 }
+
+/** How the home page's ascii art looks, by numbers, for one piece of art (see artLuminance). */
+export interface ArtLook {
+  /** alpha-weighted mean luminance per pixel of canvas: sum of alpha x Rec.709 luminance (both 0..1)
+   *  over the pixel count. Pixel-count normalised, so it compares across sizes and pixel ratios */
+  mean: number;
+  /** 95th percentile of the luminance shown (alpha x luminance) over the inked pixels (alpha >= 16):
+   *  how bright the highlights get */
+  p95: number;
+  /** share of all pixels shown brighter than 0.25 */
+  bright: number;
+  /** mean chroma shown (alpha x (max - min of r, g, b), 0..1) over the inked pixels */
+  chroma: number;
+}
+
+/**
+ * How the home page's ascii art looks: `moth` is the three hero canvases together, `word` the
+ * wordmark without its transparent `pad` (css px) a side.
+ */
+export async function artLook(page: Page, pad: number): Promise<{ moth: ArtLook; word: ArtLook }> {
+  return page.evaluate((padCss) => {
+    function pixels(cv: HTMLCanvasElement, inset: number): Uint8ClampedArray[] {
+      const ctx = cv.getContext('2d');
+      if (!ctx || cv.width === 0 || cv.height === 0) return [];
+      const p = Math.round(inset * (cv.width / (cv.clientWidth || cv.width)));
+      const [w, h] = [cv.width - 2 * p, cv.height - 2 * p];
+      return w > 0 && h > 0 ? [ctx.getImageData(p, p, w, h).data] : [];
+    }
+    function look(all: Uint8ClampedArray[]) {
+      let n = 0, sum = 0, bright = 0, chroma = 0;
+      const inked: number[] = [];
+      for (const d of all) {
+        n += d.length / 4;
+        for (let i = 0; i < d.length; i += 4) {
+          const [r, g, b, a] = [d[i] ?? 0, d[i + 1] ?? 0, d[i + 2] ?? 0, d[i + 3] ?? 0];
+          if (!a) continue;
+          const y = (a / 255) * (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+          sum += y;
+          if (y > 0.25) bright++;
+          if (a >= 16) {
+            inked.push(y);
+            chroma += (a / 255) * (Math.max(r, g, b) - Math.min(r, g, b)) / 255;
+          }
+        }
+      }
+      inked.sort((x, y) => x - y);
+      return { mean: n ? sum / n : 0, p95: inked[Math.floor(inked.length * 0.95)] ?? 0, bright: n ? bright / n : 0, chroma: inked.length ? chroma / inked.length : 0 };
+    }
+    const moth = [...document.querySelectorAll<HTMLCanvasElement>('#orbit canvas')].flatMap((cv) => pixels(cv, 0));
+    const wordCv = document.querySelector<HTMLCanvasElement>('.title canvas.word');
+    return { moth: look(moth), word: look(wordCv ? pixels(wordCv, padCss) : []) };
+  }, pad);
+}

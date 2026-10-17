@@ -4,6 +4,7 @@
 
 import type { Art, Rgb } from '@shipmoth/ascii-art';
 import { bodyFont, canvasDpr, context2d } from '../lib/canvas';
+import { bar, blockCover, drawsBlocks, snap } from '../lib/ink';
 import { mixRgb } from '../lib/colour';
 import { reducedMotion } from '../lib/motion';
 import { onResizeSettled } from '../lib/resize';
@@ -23,6 +24,7 @@ interface Glyph {
   readonly c: number;
   readonly ch: string;
   readonly rgb: Rgb;
+  readonly cover: number;                    // share of its cell its bar covers, when drawn as bars
   ox: number;
   oy: number;
   vx: number;
@@ -44,7 +46,7 @@ function parseGlyphs(art: Art): Glyph[] {
     for (let c = 0; c < row.length; c++) {
       const ch = row.charAt(c);
       const rgb = art.palette[art.color[r * art.w + c] ?? -1];
-      if (ch !== ' ' && rgb) cells.push({ r, c, ch, rgb, ox: 0, oy: 0, vx: 0, vy: 0, heat: 0 });
+      if (ch !== ' ' && rgb) cells.push({ r, c, ch, rgb, cover: blockCover(ch), ox: 0, oy: 0, vx: 0, vy: 0, heat: 0 });
     }
   }
   cells.sort((a, b) => a.c - b.c);       // by column, for the type-in
@@ -79,13 +81,13 @@ function runWordmark(cv: HTMLCanvasElement, parent: HTMLElement, art: Art): void
 
   const g = context2d(cv), base = document.createElement('canvas'), bg = context2d(base);
   const tide = document.createElement('canvas'), tg = context2d(tide);
-  let cw = 0, lh = 0, fs = 0, w = 0, h = 0, dpr = 1, drawn = 0;
+  // blocks: cells too small on screen for glyphs are drawn as bars of light (lib/ink.ts)
+  let cw = 0, lh = 0, fs = 0, w = 0, h = 0, dpr = 1, drawn = 0, blocks = false;
   const FONT = bodyFont();
   const mouse = { x: FAR, y: FAR };
   let moving = false;
 
   function layout(): void {
-    dpr = canvasDpr();
     const avail = parent.clientWidth;
     cw = Math.min(avail * SHARE / W, MAX_CELL);
     bg.font = '100px ' + FONT;
@@ -93,6 +95,8 @@ function runWordmark(cv: HTMLCanvasElement, parent: HTMLElement, art: Art): void
     lh = fs * 1.05;
     w = W * cw + PAD * 2;
     h = H * lh + PAD * 2;
+    dpr = canvasDpr(w * h);
+    blocks = drawsBlocks(cw, dpr);
     [cv, base, tide].forEach((c) => { c.width = Math.ceil(w * dpr); c.height = Math.ceil(h * dpr); });
     cv.style.width = w + 'px';
     cv.style.height = h + 'px';
@@ -103,7 +107,7 @@ function runWordmark(cv: HTMLCanvasElement, parent: HTMLElement, art: Art): void
     paint(performance.now());
   }
 
-  /** The base layer: every typed glyph at its (pushed) position, in its (glowing) colour. */
+  /** The base layer: every typed glyph (or its bar) at its (pushed) position, in its (glowing) colour. */
   function redraw(): void {
     bg.setTransform(dpr, 0, 0, dpr, 0, 0);
     bg.clearRect(0, 0, w, h);
@@ -113,7 +117,14 @@ function runWordmark(cv: HTMLCanvasElement, parent: HTMLElement, art: Art): void
       const e = cells[i];
       if (!e) continue;
       bg.fillStyle = glowColour(e);
-      bg.fillText(e.ch, PAD + e.c * cw + e.ox, PAD + e.r * lh + lh / 2 + e.oy);
+      if (blocks) {
+        // cells on whole device pixels: at rest they tile exactly, pushed ones move a pixel at a time
+        const x0 = snap(PAD + e.c * cw + e.ox, dpr), x1 = snap(PAD + (e.c + 1) * cw + e.ox, dpr);
+        const [top, height] = bar(snap(PAD + e.r * lh + e.oy, dpr), snap(PAD + (e.r + 1) * lh + e.oy, dpr), e.cover);
+        bg.fillRect(x0, top, x1 - x0, height);
+      } else {
+        bg.fillText(e.ch, PAD + e.c * cw + e.ox, PAD + e.r * lh + lh / 2 + e.oy);
+      }
     }
   }
 

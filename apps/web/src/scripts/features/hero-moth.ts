@@ -3,12 +3,12 @@
 import { luminance } from '@shipmoth/ascii-art';
 import type { Art, Rgb } from '@shipmoth/ascii-art';
 import { bodyFont, canvasDpr, context2d } from '../lib/canvas';
+import { RAMP, bar, blockCover, drawsBlocks, snap } from '../lib/ink';
 import { reducedMotion } from '../lib/motion';
 import { onResizeSettled } from '../lib/resize';
 
 const HL = 150, HR = 170;                    // body columns: [HL, HR)
 const MAX_CELL = 4.2;                        // px per column on wide screens
-const RAMP = " .'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
 const ASPECT = 1.75;                         // a row is ~1.75 columns tall
 
 // entrance timings, ms
@@ -27,6 +27,7 @@ interface Part {
   readonly c1: number;
   readonly cv: HTMLCanvasElement;
   readonly ctx: CanvasRenderingContext2D;
+  left: number;                              // block mode: where the canvas starts, css px on the device-pixel grid
 }
 
 /** The art as flat row-major grids: id = r * w + c. */
@@ -63,7 +64,7 @@ function createPart(stage: HTMLElement, c0: number, c1: number, className: strin
   const cv = document.createElement('canvas');
   cv.className = className;
   stage.appendChild(cv);
-  return { c0, c1, cv, ctx: context2d(cv) };
+  return { c0, c1, cv, ctx: context2d(cv), left: 0 };
 }
 
 /* entrance: a point of light at the centre of the body grows outward, and the moth is made by it.
@@ -117,12 +118,26 @@ function runHeroMoth(orbit: HTMLElement, art: Art): void {
   ];
   orbit.appendChild(stage);
 
-  let cw = 0, lh = 0, revealed = 0, done = false, order: number[] = [];
+  // blocks: cells too small on screen for glyphs are drawn as bars of light (lib/ink.ts)
+  let cw = 0, lh = 0, dpr = 1, blocks = false, revealed = 0, done = false, order: number[] = [];
   const glyph = (id: number): string => ch[id] ?? ' ';
   const partFor = (c: number): Part => (c < HL ? parts[0] : c < HR ? parts[1] : parts[2]);
 
+  /** draws glyph g (blank clears) in cell (r, c): the glyph itself, or its bar */
   function cell(r: number, c: number, g: string): void {
     const p = partFor(c), ctx = p.ctx, px = (c - p.c0) * cw, py = r * lh;
+    if (blocks) {
+      // the cell on whole device pixels, so a redraw never touches the neighbouring cells
+      const x0 = snap(c * cw, dpr) - p.left, x1 = snap((c + 1) * cw, dpr) - p.left, y0 = snap(py, dpr), y1 = snap((r + 1) * lh, dpr);
+      ctx.clearRect(x0, y0, x1 - x0, y1 - y0);
+      const cover = blockCover(g);
+      if (cover > 0) {
+        const [top, height] = bar(y0, y1, cover);
+        ctx.fillStyle = col[r * W + c]?.hex ?? '';
+        ctx.fillRect(x0, top, x1 - x0, height);
+      }
+      return;
+    }
     ctx.clearRect(px - 0.5, py, cw + 1, lh);
     if (g && g !== ' ') {
       ctx.fillStyle = col[r * W + c]?.hex ?? '';
@@ -132,16 +147,26 @@ function runHeroMoth(orbit: HTMLElement, art: Art): void {
   const settle = (id: number): void => cell((id / W) | 0, id % W, glyph(id));
 
   function layout(): void {
-    const dpr = canvasDpr();
     const font = bodyFont();
     cw = Math.min(orbit.clientWidth / W, MAX_CELL);
     const probe = parts[0].ctx;
     probe.font = '100px ' + font;
     const fs = cw / (probe.measureText('M').width / 100);
     lh = fs * 1.05;
+    dpr = canvasDpr(W * cw * H * lh);         // the three canvases together
+    blocks = drawsBlocks(cw, dpr);
     parts.forEach((p) => {
-      const w = (p.c1 - p.c0) * cw, h = H * lh;
-      p.cv.width = Math.ceil(w * dpr);
+      let w = (p.c1 - p.c0) * cw;
+      const h = H * lh;
+      if (blocks) {
+        // whole device pixels wide, so the three canvases meet on a pixel edge: no seam between them
+        // (the height stays as it is: the page below the hero must not move)
+        p.left = snap(p.c0 * cw, dpr);
+        w = snap(p.c1 * cw, dpr) - p.left;
+        p.cv.width = Math.round(w * dpr);
+      } else {
+        p.cv.width = Math.ceil(w * dpr);
+      }
       p.cv.height = Math.ceil(h * dpr);
       p.cv.style.width = w + 'px';
       p.cv.style.height = h + 'px';
@@ -171,17 +196,13 @@ function runHeroMoth(orbit: HTMLElement, art: Art): void {
     const t0 = performance.now();
     let head = 0, band: number[] = [];
     // ascii build-up: when the light reaches a character it steps up the density scale
-    // (. : ; + * # ...) in its own colour until it lands on its real glyph
+    // (. : ; + * # ...) in its own colour until it lands on its real glyph (as bars: the bar grows)
     function burn(id: number, a: number): void {                         // a: 0 just reached .. 1 settled
-      const r = (id / W) | 0, c = id % W, p = partFor(c), ctx = p.ctx, px = (c - p.c0) * cw, py = r * lh;
       const real = glyph(id);
       let target = RAMP.indexOf(real);
       if (target < 2) target = RAMP.length - 1;
       const step = Math.floor(a * STEPS) / STEPS;                        // discrete jumps, not a smooth blend
-      const g = step >= 1 ? real : RAMP.charAt(Math.max(1, Math.round(step * target)));
-      ctx.clearRect(px - 0.5, py, cw + 1, lh);
-      ctx.fillStyle = col[id]?.hex ?? '';
-      ctx.fillText(g, px, py + lh / 2);
+      cell((id / W) | 0, id % W, step >= 1 ? real : RAMP.charAt(Math.max(1, Math.round(step * target))));
     }
     function grow(): void {
       const t = performance.now() - t0;

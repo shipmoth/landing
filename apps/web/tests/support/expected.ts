@@ -90,6 +90,25 @@ export const COPY = {
   address: 'hello@shipmoth.com',
 };
 
+/**
+ * The hero moth and the wordmark draw each art cell as its glyph (fillText) when a cell is at least
+ * BLOCK_BELOW device px wide, else as a bar (fillRect). Their canvases render at the screen's
+ * pixel ratio as long as the canvases drawn together stay within PIXEL_BUDGET device pixels (and
+ * never below 2x on a denser screen); every other canvas is capped at 2x.
+ */
+export const ART_RENDER = {
+  blockBelow: 3.4,
+  pixelBudget: 3_000_000,
+  /** non-blank cells: the hero art (314 x 102) and the wordmark art (315 x 34) */
+  heroCells: 18_507,
+  wordCells: 5_243,
+  /** transparent room around the wordmark's art, css px a side */
+  wordPad: 70,
+  /** the wordmark drawn as glyphs at 1280px, before it had bars (Chromium, Windows): the 95th
+   *  percentile of what its inked pixels show, and its share of bright pixels (tests/support/canvas.ts) */
+  wordGlyphLook: { p95: 0.358, bright: 0.0606 },
+} as const;
+
 export const WING_FRAMES = ['}o{', ')o(', '|o|', ')o('];
 
 export const IDLE_MS = 30_000;

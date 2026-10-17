@@ -108,6 +108,18 @@ importing a shared chunk, so a page never waits on a second script (see `astro.c
       node --experimental-strip-types tools/ans2json.ts ~/Downloads/some-art.ans src/data/hero.json
       node --experimental-strip-types tools/ans2json.ts ~/Downloads/some-word.ans src/data/wordmark.json
 
+  Both draw in one of two modes, chosen on every layout (load, resize, a change of pixel ratio) by
+  how many device pixels a cell gets: from `BLOCK_BELOW` (3.4) up, each cell is its glyph
+  (`fillText`); below it a glyph is too small to keep its shape and antialiasing dims the art, so
+  each cell is a bar (`fillRect`): opaque, in its colour, the cell's full width, centred, and as
+  tall as the glyph is dense (its place on the density ramp `RAMP`, through the curve `INK_GAMMA`,
+  times `BLOCK_COVER`, tuned so bars are as bright on average as the desktop glyphs). The rows of
+  bars keep the glyphs' scanline texture and the art's full colour. All of it is in
+  `src/scripts/lib/ink.ts`. In practice the desktop moth (3.5px cells at 1x) is glyphs, and
+  phones, the 1x desktop wordmark (1.5px cells) and a moth under ~1100px wide at 1x are bars.
+  Their canvases render at the screen's pixel ratio up to `PIXEL_BUDGET` (3 Mpx,
+  `lib/canvas.ts`), so a 3x phone gets 3x; the swarm and crew orbit stay capped at 2x.
+
 - **Moths.** The wingbeat drawing is `MOTH_FRAMES` in `src/scripts/lib/moth.ts` (used by the
   swarm, the crew orbit and the stamp on the idea line). `COLOURS` in `features/swarm.ts` is the
   palette the swarm picks from. A page can ask for fewer moths with `data-moths` on `<body>` (the
@@ -312,15 +324,16 @@ Chromium; `pnpm test:nginx` tests the Docker image. Install the browser once wit
   `tools/ans2json.ts` turns `test/fixtures/sample.ans` into exactly what the original Python
   converter (`ans2js.py`) made of it (`sample.ans2js.js`, a fixed golden file).
 - `apps/web/tests/unit` (`pnpm test`, Playwright runner, no browser): the DOM-free modules (ascii
-  light, idea belt), the markdown / plain-text / coloured-text generator on small html fixtures
-  (`ansi-text.spec.ts` reads the escapes back with its own small terminal model), and
-  `art-room.spec.ts`: the space `global.css` reserves for the hero moth and wordmark matches the
-  art's size, so new art fails `pnpm test` until `global.css` is updated.
+  light, idea belt, the ramp -> ink curve), the markdown / plain-text / coloured-text generator on
+  small html fixtures (`ansi-text.spec.ts` reads the escapes back with its own small terminal
+  model), and `art-room.spec.ts`: the space `global.css` reserves for the hero moth and wordmark
+  matches the art's size, so new art fails `pnpm test` until `global.css` is updated.
 - `apps/web/tests/e2e` (project `chromium`, 1280x800 unless a spec says otherwise): behaviour of
-  the built site: the canvases and their timing, the swarm and its lamp, the idle moth, the idea
-  line, the crew, the forms and buttons, hover and selection colours, the CSS animations, layout
-  at every width from 300 to 1920px (nothing cut off, the home hero centred on the column) and at
-  each breakpoint, a resized window matching a fresh load,
+  the built site: the canvases and their timing (at desktop and 3x phone sizes), glyphs or bars
+  for the hero art and its brightness and highlights on phones against the desktop, the swarm and
+  its lamp, the idle moth, the idea line, the crew, the forms and buttons, hover and selection
+  colours, the CSS animations, layout at every width from 300 to 1920px (nothing cut off, the home hero centred on
+  the column) and at each breakpoint, a resized window matching a fresh load,
   the pages over `file://`, with JavaScript off and over a throttled connection, and the built
   `index.md` / `index.txt` against their page and `index.ansi` against `index.txt` (the invariant).
 - `apps/web/tests/a11y` (project `chromium`): axe (zero violations; the one accepted rule is
